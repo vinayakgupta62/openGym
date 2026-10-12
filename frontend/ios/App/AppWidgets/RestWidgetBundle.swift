@@ -152,10 +152,25 @@ private struct Buttons: View {
  */
 private func face(_ context: ActivityViewContext<RestActivityAttributes>) -> String {
     let phase = context.state.phase
-    if phase == RestActivityAttributes.Phase.rest && context.isStale {
+    if phase == RestActivityAttributes.Phase.rest && isStale(context) {
         return RestActivityAttributes.Phase.ready
     }
     return phase
+}
+
+/**
+ * `ActivityViewContext.isStale` is **iOS 16.2**, while this extension is built for 16.1 — the
+ * ActivityKit floor the app target and the Podfile share — so it is asked behind its own gate. The
+ * first CI run stopped here with `'isStale' is only available in iOS 16.2 or newer`, in this exact
+ * compile unit. That is why the check is a named function rather than a property read in the middle
+ * of a view body: there is one place to gate, and a test reads it.
+ *
+ * On 16.1 the card counts down to 0:00 and stays there until the app is opened. There is no
+ * supported way to tell a 16.1 render that its content has gone out of date.
+ */
+private func isStale(_ context: ActivityViewContext<RestActivityAttributes>) -> Bool {
+    if #available(iOS 16.2, *) { return context.isStale }
+    return false
 }
 
 /// The clock's three faces. Same size in all of them, so the row does not jump when the rest ends.

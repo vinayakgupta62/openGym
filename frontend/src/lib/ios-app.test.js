@@ -151,6 +151,14 @@ describe('the Live Activity and its buttons', () => {
     expect(widget).not.toMatch(/minimal:[\s\S]{0,200}Button\(intent:/)
   })
 
+  // The first CI run stopped on exactly this: `ActivityViewContext.isStale` is iOS 16.2 while the
+  // extension is built for 16.1, so the Ready-at-0:00 check has to stay behind its own gate. One
+  // read, one gate, and this pins both — the same shape as the plugin `override` guard.
+  it('the staleness check is gated where the API is newer than the target', () => {
+    expect(widget).toContain('if #available(iOS 16.2, *) { return context.isStale }')
+    expect(widget.match(/context\.isStale/g) || []).toHaveLength(1)
+  })
+
   // Every word on the card and on the notification comes from the app's own i18n: the widget cannot
   // reach it, and the button that re-books the notification runs where no JavaScript is running.
   it('the card is handed its words, and never invents any', () => {
