@@ -1,6 +1,8 @@
-// On the Android app the status bar icons stayed white on the light theme and could not be read
-// (Android 15 draws the page under them). The page tells the native side which theme it resolved
-// to; nothing else may hear about it, and an APK without the plugin must not break the theme.
+// The status bar has to follow the app's theme on both phone shells. On Android 15 the page is
+// drawn edge to edge and the icons stayed white on the light theme; on iOS the style falls back to
+// the device's own light/dark setting, so a phone in Light Mode running the dark theme drew dark
+// glyphs on #000000. The page tells the native side which theme it resolved to; nothing else may
+// hear about it, and a shell without the plugin must not break the theme.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 
@@ -40,8 +42,16 @@ describe('system bars follow the theme on Android', () => {
     expect(h.calls).toEqual([['setStyle', { light: true }], ['setStyle', { light: false }]])
   })
 
-  it('stays quiet off Android', async () => {
+  it('asks on iOS too, where the same theme has to reach the status bar', async () => {
     h.platform = 'ios'
+    const { setSystemBarsLight } = await import('./system-bars.js')
+    await setSystemBarsLight(true)
+    await setSystemBarsLight(false)
+    expect(h.calls).toEqual([['setStyle', { light: true }], ['setStyle', { light: false }]])
+  })
+
+  it('stays quiet on the web build', async () => {
+    h.platform = 'web'
     const { setSystemBarsLight } = await import('./system-bars.js')
     await setSystemBarsLight(true)
     expect(h.calls).toEqual([])
@@ -62,5 +72,18 @@ describe('system bars follow the theme on Android', () => {
     expect(activity).toMatch(/registerPlugin\(SystemBarsPlugin\.class\);[\s\S]*super\.onCreate/)
     expect(plugin).toContain('@CapacitorPlugin(name = "SystemBars")')
     expect(plugin).toMatch(/setAppearanceLightStatusBars\(light\)/)
+  })
+
+  // The iOS half answers the same jsName with the same argument, so the page needs no branch. A
+  // Swift file that is not in the Xcode project is not compiled, though — Capacitor would find no
+  // plugin, the call would reject, and the catch above would swallow it into silent no-op. Hence
+  // the pbxproj assertion: it is the one failure here that looks exactly like success.
+  it('iOS registers the same jsName, and the file is actually in the project', () => {
+    const swift = readFileSync(new URL('../../ios/App/App/SystemBarsPlugin.swift', import.meta.url), 'utf8')
+    expect(swift).toContain('public let jsName = "SystemBars"')
+    expect(swift).toMatch(/pluginMethods: \[CAPPluginMethod\] = \[\s*CAPPluginMethod\(name: "setStyle"/)
+    expect(swift).toMatch(/setStatusBarStyle\(light \? \.darkContent : \.lightContent\)/)
+    const pbxproj = readFileSync(new URL('../../ios/App/App.xcodeproj/project.pbxproj', import.meta.url), 'utf8')
+    expect(pbxproj).toContain('SystemBarsPlugin.swift in Sources')
   })
 })

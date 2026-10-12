@@ -33,6 +33,21 @@ export async function isAndroid() {
   }
 }
 
+// The iOS half of the same question, kept beside isAndroid() so a caller that has to branch on
+// the platform asks here rather than sniffing the user agent: iPadOS reports itself as a Mac
+// under desktop-class browsing, and Capacitor.getPlatform() is the authority. iOS is a real
+// platform for this app, not the absence of Android — the rest timer, the print sheet and the
+// Coach's endpoint rules all answer differently there.
+export async function isIOS() {
+  if (!MOBILE) return false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    return Capacitor.getPlatform() === 'ios'
+  } catch (e) {
+    return false
+  }
+}
+
 const FILE = 'opengym-state.json'
 
 export async function nativeLoad() {

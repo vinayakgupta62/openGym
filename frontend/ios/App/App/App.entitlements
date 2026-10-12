@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Settings → Health (#200): without this entitlement HealthKit refuses every call, and
+	     requestAuthorization fails rather than prompting, so HealthPlugin reports "unsupported"
+	     and Settings hides the card. It is the iOS counterpart of the two
+	     android.permission.health.WRITE_* entries in AndroidManifest.xml.
+
+	     It also has to be enabled on the App ID: Xcode's Signing & Capabilities tab adds it when
+	     you click + Capability → HealthKit under automatic signing. A free Apple ID cannot always
+	     provision HealthKit — if signing fails on the entitlement, removing the HealthKit
+	     capability (and the CODE_SIGN_ENTITLEMENTS lines in project.pbxproj) leaves a working app
+	     with the Health card hidden, which is exactly what it did before this existed.
+
+	     The unsigned .ipa that .github/workflows/ios.yml builds should be unaffected either way:
+	     code signing is off there (CODE_SIGNING_ALLOWED=NO), so no provisioning profile is
+	     consulted and the entitlement cannot fail the build on provisioning. Worth watching the
+	     first CI run for that, since it has not run yet. -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+</dict>
+</plist>

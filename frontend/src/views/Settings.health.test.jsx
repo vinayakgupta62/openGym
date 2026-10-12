@@ -39,6 +39,8 @@ vi.mock('../lib/api.js', () => ({ api: vi.fn(), webauthnOK: () => false, passkey
 vi.mock('../lib/push.js', () => ({ pushSupported: () => false, enablePush: vi.fn(), disablePush: vi.fn(), sendTestPush: vi.fn() }))
 vi.mock('../lib/wakelock.js', () => ({ wakeLockSupported: () => false }))
 vi.mock('../lib/mobile.js', () => ({
+  // Settings.jsx resolves the platform for the Health card, which names each store its own way.
+  isIOS: () => Promise.resolve(false),
   get MOBILE() { return mocks.MOBILE },
   isAndroid: () => Promise.resolve(mocks.android),
   shareExport: vi.fn(), syncReminder: vi.fn(),

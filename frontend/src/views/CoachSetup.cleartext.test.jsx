@@ -7,8 +7,10 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 /* The phone's own-key Coach and an http:// endpoint. Android refuses unencrypted traffic from
    the app, so a LAN model at http://… used to fail as a bare "could not reach the provider".
-   The screen now says why as soon as the address is typed, and never tries the request. */
-const mocks = vi.hoisted(() => ({ toast: vi.fn(), localModels: vi.fn(async () => ({ ok: true, models: ['llama3'] })), setCoachLocal: vi.fn(async () => {}) }))
+   The screen now says why as soon as the address is typed, and never tries the request.
+   iOS is the other half: Info.plist carries NSAllowsArbitraryLoads, the app can reach the
+   endpoint, and neither the footer nor the toast may appear there. */
+const mocks = vi.hoisted(() => ({ toast: vi.fn(), localModels: vi.fn(async () => ({ ok: true, models: ['llama3'] })), setCoachLocal: vi.fn(async () => {}), ios: false }))
 
 vi.mock('../store/useStore.js', () => {
   const snap = () => ({ user: null, config: null, coachLocal: null, setCoachLocal: mocks.setCoachLocal, refreshConfig: vi.fn() })
@@ -23,7 +25,9 @@ vi.mock('../store/useUI.js', () => {
   return { useUI }
 })
 vi.mock('react-router-dom', () => ({ useNavigate: () => () => {} }))
-vi.mock('../lib/mobile.js', () => ({ MOBILE: true }))
+// The refusal is Android's alone; the platform is read through isIOS() so one mock serves both
+// cases (the iOS one below asserts the opposite).
+vi.mock('../lib/mobile.js', () => ({ MOBILE: true, isIOS: async () => mocks.ios }))
 vi.mock('../lib/coach-secrets.js', () => ({ getApiKey: async () => null, setApiKey: vi.fn(async () => {}), clearApiKey: vi.fn(async () => {}) }))
 vi.mock('../lib/coach-local.js', () => ({ localModels: (...a) => mocks.localModels(...a), localForget: vi.fn() }))
 vi.mock('./MobileOnboarding.jsx', () => ({ ConnectSheet: () => null }))
@@ -40,7 +44,7 @@ function mount(el) {
   return host
 }
 afterEach(() => { act(() => { mounted.splice(0).forEach(({ root, host }) => { root.unmount(); host.remove() }) }) })
-beforeEach(() => { mocks.toast.mockClear(); mocks.localModels.mockClear(); mocks.setCoachLocal.mockClear() })
+beforeEach(() => { mocks.toast.mockClear(); mocks.localModels.mockClear(); mocks.setCoachLocal.mockClear(); mocks.ios = false })
 
 const settle = () => act(() => new Promise(r => setTimeout(r, 0)))
 const byText = (el, sel, text) => [...el.querySelectorAll(sel)].find(n => n.textContent === text)
@@ -87,5 +91,19 @@ describe('CoachSetup and an http:// endpoint', () => {
     await act(async () => { byText(page, 'button', 'Save and use the Coach').click() })
     expect(mocks.setCoachLocal).not.toHaveBeenCalled()
     expect(mocks.toast).toHaveBeenLastCalledWith(expect.stringMatching(REFUSAL))
+  })
+})
+
+describe('CoachSetup and an http:// endpoint on iOS', () => {
+  it('does not refuse it, and does try the endpoint', async () => {
+    mocks.ios = true
+    const { endpoint, input, page } = await openCompatible()
+    type(input, 'http://192.168.1.20:11434')
+    expect(endpoint.querySelector('.sect-f')).toBeNull()
+
+    await act(async () => { byText(page, 'button', 'List models').click() })
+    await settle()
+    expect(mocks.localModels).toHaveBeenCalledTimes(1)
+    expect(mocks.localModels.mock.calls[0][0]).toMatchObject({ provider: 'compatible', baseUrl: 'http://192.168.1.20:11434' })
   })
 })

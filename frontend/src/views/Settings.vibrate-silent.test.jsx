@@ -44,6 +44,8 @@ vi.mock('../lib/push.js', () => ({ pushSupported: () => false, enablePush: vi.fn
 vi.mock('../lib/wakelock.js', () => ({ wakeLockSupported: () => false }))
 // MOBILE is read at render time through a getter so one module mock serves both builds.
 vi.mock('../lib/mobile.js', () => ({
+  // Settings.jsx resolves the platform for the Health card, which names each store its own way.
+  isIOS: () => Promise.resolve(false),
   get MOBILE() { return mocks.MOBILE },
   isAndroid: () => Promise.resolve(mocks.android),
   shareExport: vi.fn(), syncReminder: vi.fn(),

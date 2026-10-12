@@ -66,5 +66,60 @@
 	<string>Used to scan your gym membership QR code, and to take a photo or video of an exercise you add yourself.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Used to record the sound of a video you take of an exercise you add yourself.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Used to reach the openGym server, or the AI model, that you run on your own network.</string>
+	<!-- "Auto-backup on changes" (lib/mobile.js writeAutoBackup) writes
+	     Documents/openGym/opengym-backup-YYYY-MM-DD.json, and docs/MOBILE.md promises that folder is
+	     one "where a file manager or a sync app (Syncthing, a cloud folder) can reach it". That is
+	     true on Android, and on iOS it needs these two keys: without them the app's Documents folder
+	     is private to the app, so the folder could be neither seen in Files nor pointed at by a sync
+	     app — and the copies could not be re-imported through Settings → Import backup either, since
+	     that goes through the Files picker.
+
+	     UIFileSharingEnabled exposes Documents to the Files app and Finder.
+	     LSSupportsOpeningDocumentsInPlace lets Files open and edit those files where they are,
+	     rather than copying them out. The media store is deliberately not affected: it lives in
+	     Library/opengym-media/ (media-store-fs.js), which stays private. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<!-- Settings → Health (#200). iOS refuses the request outright, and terminates the app, when a
+	     usage string for the kind of data being asked for is missing.
+	     Update is the write: finished workouts and weigh-ins go to Apple Health.
+	     Share is the read, and it is not a habit openGym has on Android — the iOS plugin asks for
+	     it because HealthKit can only delete objects it can hand you, so finding openGym's own
+	     records again (to update them, or to take them back out when the user turns the toggle
+	     off) needs read access. The plugin reads nothing else and stores nothing from it. -->
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Used to save the workouts you finish and the weigh-ins you log to Apple Health.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Used to find the workouts and weigh-ins openGym saved to Apple Health, so they can be updated, or removed again when you turn the feature off.</string>
+	<!-- The iOS half of the pair with android/app/src/main/res/xml/network_security_config.xml.
+	     Issues #428, #329: the app talks only to addresses its own user typed in — their openGym,
+	     their Coach endpoint — and plenty of those run on a home network over plain http, which the
+	     phone's browser opens fine. App Transport Security is on by default and refuses every
+	     cleartext connection (NSURLErrorAppTransportSecurityRequiresSecureConnection, -1022), for
+	     the WebView's fetch and for CapacitorHttp's own URLSession alike, so without this the phone
+	     app cannot pair with a self-hosted server on http:// at all.
+
+	     NSAllowsArbitraryLoads is the only key that covers both of those paths at once, and it is
+	     Apple's documented answer to "your app allows the user to specify connection to an
+	     arbitrary URL". Do NOT add NSAllowsLocalNetworking, NSAllowsArbitraryLoadsInWebContent or
+	     NSAllowsArbitraryLoadsForMedia beside it: from iOS 10 on, ANY of those three present makes
+	     ATS ignore NSAllowsArbitraryLoads entirely and fall back to its default of NO, which would
+	     re-block http:// and quietly undo this. NSLocalNetworking would only cover `.local` and
+	     unqualified names anyway, never the numeric addresses (http://192.168.1.20:8080) the
+	     pairing screen actually asks for — and NSExceptionDomains cannot name an IP address.
+
+	     This is the trade the Android config makes too, and for the same reason: it cannot be
+	     scoped to private addresses, so it is app wide. openGym is deliberately not distributed
+	     through the App Store (docs/MOBILE.md); a store build would owe Apple the justification
+	     above. The app's own downloads (exercise media) use https either way. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

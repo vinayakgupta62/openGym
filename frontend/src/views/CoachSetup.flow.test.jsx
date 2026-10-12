@@ -46,8 +46,9 @@ vi.mock('../store/useUI.js', () => {
   return { useUI }
 })
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.nav }))
-// A getter, so one test can be the web build and the rest the phone.
-vi.mock('../lib/mobile.js', () => ({ get MOBILE() { return mocks.mobile } }))
+// A getter, so one test can be the web build and the rest the phone. isIOS() is stubbed too:
+// this suite exercises the flow, and the Android-only cleartext refusal has its own file.
+vi.mock('../lib/mobile.js', () => ({ get MOBILE() { return mocks.mobile }, isIOS: async () => false }))
 vi.mock('../lib/coach-secrets.js', () => ({
   getApiKey: vi.fn(() => Promise.resolve(null)),
   setApiKey: vi.fn(() => Promise.resolve()),

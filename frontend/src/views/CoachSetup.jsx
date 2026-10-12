@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t } from '../lib/i18n.js'
-import { MOBILE } from '../lib/mobile.js'
+import { MOBILE, isIOS } from '../lib/mobile.js'
 import { CATEGORY_TEXT } from '../lib/coach.js'
 import { getApiKey, setApiKey, clearApiKey } from '../lib/coach-secrets.js'
 import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, baseUrlFor, validateBaseUrl } from '../../../api/coach/core/providers.js'
@@ -27,11 +27,16 @@ import { Section, Row, Button, TextField } from '../components/ui.jsx'
 const STEPS = () => [t('Loading the exercise catalogue…'), t('Checking the endpoint…'), t('Ready')]
 
 // The phone calls the provider through CapacitorHttp, native networking that obeys the
-// platform's cleartext rule, and Android refuses unencrypted http:// from apps
-// (network_security_config.xml leaves it at the default, off). An http:// endpoint on the LAN
-// therefore failed as a bare "could not reach the provider", with nothing to say why. It is
-// refused up front with the two ways that work: HTTPS in front of the model, or the server's
-// Coach, which has no such rule and reaches http:// on its own network.
+// platform's cleartext rule, and an http:// endpoint on the LAN used to fail as a bare
+// "could not reach the provider", with nothing to say why. It is refused up front with the two
+// ways that work: HTTPS in front of the model, or the server's Coach, which has no such rule
+// and reaches http:// on its own network.
+//
+// That refusal is Android's alone, and the message says so. Android's switch is
+// network_security_config.xml; iOS's is App Transport Security, and ios/App/App/Info.plist
+// carries NSAllowsArbitraryLoads for exactly this case — a user-typed endpoint address. iOS can
+// therefore reach the http:// model, and refusing it there would be wrong (and would name the
+// other platform at an iPhone user). `refused` below is what both platforms are asked.
 const isCleartext = url => /^http:\/\//i.test(String(url || '').trim())
 const cleartextRefused = () => t('Android blocks unencrypted http:// connections from apps, so this phone can only reach an https:// endpoint. Put HTTPS in front of it (Tailscale or a reverse proxy), or choose “Use my self-hosted openGym”: your server can reach an http:// model on its own network.')
 
@@ -54,8 +59,16 @@ export default function CoachSetup() {
   const [models, setModels] = useState(null)
   const [step, setStep] = useState(-1)                     // -1 idle, 0..2 running, 3 done
   const [busy, setBusy] = useState(false)
+  // Resolved once here because the Endpoint section's footer needs it while rendering, and
+  // isIOS() is a promise. False until it answers, which is the Android/web reading: the only
+  // thing this decides is whether an http:// address is refused, and a first paint that briefly
+  // refuses is the safe side of that.
+  const [ios, setIos] = useState(false)
+  // Android only, and only for a cleartext address (see the comment on isCleartext above).
+  const refused = url => !ios && isCleartext(url)
 
   useEffect(() => { if (!MOBILE) nav('/settings', { replace: true }) }, [])
+  useEffect(() => { let live = true; isIOS().then(v => { if (live) setIos(v) }).catch(() => {}); return () => { live = false } }, [])
   useEffect(() => { getApiKey().then(k => setHasKey(!!k)) }, [])
   // Ask the paired server afresh: the admin may have switched the Coach on since this phone booted.
   useEffect(() => { if (user) refreshConfig() }, [user])
@@ -79,7 +92,7 @@ export default function CoachSetup() {
     // An empty field passes the validator on purpose: for a provider with a fixed endpoint,
     // empty means the default. This one has no default, so empty is nowhere to call.
     if (meta.baseUrl && !meta.defaultBase && !v.value) return toast(t('Enter the endpoint URL'))
-    if (isCleartext(v.value)) return toast(cleartextRefused())
+    if (refused(v.value)) return toast(cleartextRefused())
     if (!meta.keyOptional && !key.trim() && !hasKey) return toast(t('Enter your API key'))
     setBusy(true); setStep(0)
     try {
@@ -106,7 +119,7 @@ export default function CoachSetup() {
     const chosen = model || meta.defaultModel
     if (!chosen) return toast(t('Pick a model'))
     // The endpoint can still be edited after the models were listed.
-    if (isCleartext(v.value)) return toast(cleartextRefused())
+    if (refused(v.value)) return toast(cleartextRefused())
     setBusy(true)
     try {
       // The mode first, the key second: the settings file is the cheap, reliable write, the
@@ -162,7 +175,7 @@ export default function CoachSetup() {
       </Section>
 
       {meta.baseUrl && <Section title={t('Endpoint')}
-        footer={isCleartext(baseUrl) ? <span style={{ color: 'var(--red)' }}>{cleartextRefused()}</span> : null}>
+        footer={refused(baseUrl) ? <span style={{ color: 'var(--red)' }}>{cleartextRefused()}</span> : null}>
         <div style={{ padding: '8px 12px' }}>
           <TextField value={baseUrl} placeholder="https://ollama.example.com" inputMode="url" autoCapitalize="none" autoCorrect="off"
             onChange={e => setBaseUrl(e.target.value)} />

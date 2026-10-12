@@ -1,13 +1,19 @@
-// Health Connect on the Android app (#200): turning it on, and keeping it in step with the log.
-// What gets written is worked out in lib/health-connect.js; this file owns the native plugin
-// (HealthConnectPlugin.java) and the phone's own record of what it wrote.
+// The phone's own store for health data (#200): turning it on, and keeping it in step with the
+// log. What gets written is worked out in lib/health-connect.js; this file owns the native plugin
+// and the phone's own record of what it wrote.
 //
 // It is a fact about this phone, not about the training log: kept in its own file in the app's
 // data directory, never in S, so it does not sync to a server, ride in a backup, or switch on a
-// second phone. Off until the user turns it on; nothing is asked of Health Connect before that.
+// second phone. Off until the user turns it on; nothing is asked of the store before that.
 //
-// The web build never gets here (MOBILE is a build-time flag), and iOS answers 'unsupported'.
-import { MOBILE, isAndroid, readJsonFile, writeJsonFile } from './mobile.js'
+// The two platforms are the same feature in their own clothing — Health Connect on Android,
+// HealthKit on iOS — and the native plugins answer the same five methods with the same record
+// shapes, so everything below the plugin line is platform-free. The web build never gets here
+// (MOBILE is a build-time flag).
+//
+// One difference the UI has to carry: Android is write-only, while the iOS plugin also asks for
+// read access, because HealthKit can only delete objects it can hand you. See HealthPlugin.swift.
+import { MOBILE, isAndroid, isIOS, readJsonFile, writeJsonFile } from './mobile.js'
 import { healthRecords, planSync, writtenIds } from './health-connect.js'
 import { exerciseNameFor } from './i18n-core.js'
 import { EXIDX } from './exercises.js'
@@ -20,9 +26,12 @@ const OFF = { on: false, written: {}, at: 0, error: null }
 // promise resolved with the bare proxy never settles.
 let pluginP = null
 const plugin = () => pluginP || (pluginP = (async () => {
-  if (!(await isAndroid())) return null
+  const android = await isAndroid()
+  if (!android && !(await isIOS())) return null
   const { registerPlugin } = await import('@capacitor/core')
-  return { HC: registerPlugin('HealthConnect') }
+  // The same feature under the platform's own name: the local plugin files are
+  // HealthConnectPlugin.java and HealthPlugin.swift.
+  return { HC: registerPlugin(android ? 'HealthConnect' : 'Health') }
 })().catch(() => null))
 
 // The file's content, read once and then kept here: a save while it is off (the usual case) must

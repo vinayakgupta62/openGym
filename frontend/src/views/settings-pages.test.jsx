@@ -35,7 +35,15 @@ vi.mock('react-router-dom', () => ({ useNavigate: () => (...a) => mocks.navs.pus
 vi.mock('../lib/api.js', () => ({ api: vi.fn(path => Promise.resolve(path === '/api/account/passkeys' ? { passkeys: [] } : {})), webauthnOK: () => false, passkeyLogin: vi.fn(), passkeyRegister: vi.fn(), IS_ANDROID: false }))
 vi.mock('../lib/push.js', () => ({ pushSupported: () => mocks.push, enablePush: vi.fn(), disablePush: vi.fn(), sendTestPush: vi.fn(), syncPushSubscription: vi.fn(() => Promise.resolve(mocks.pushOn)) }))
 vi.mock('../lib/wakelock.js', () => ({ wakeLockSupported: () => true }))
-vi.mock('../lib/mobile.js', () => ({ get MOBILE() { return mocks.MOBILE }, isAndroid: () => Promise.resolve(false), shareExport: vi.fn(), shareExportBlob: vi.fn(), syncReminder: vi.fn() }))
+vi.mock('../lib/mobile.js', () => ({
+  // Settings.jsx resolves the platform for the Health card, which names each store its own way.
+  isIOS: () => Promise.resolve(false),
+  get MOBILE() { return mocks.MOBILE },
+  isAndroid: () => Promise.resolve(false),
+  shareExport: vi.fn(),
+  shareExportBlob: vi.fn(),
+  syncReminder: vi.fn(),
+}))
 vi.mock('./MobileOnboarding.jsx', () => ({ ConnectSheet: () => null }))
 vi.mock('../sheets.jsx', () => ({
   starterPlanSheet: vi.fn(), confirmSheet: vi.fn(), importFromApp: vi.fn(), importFromHevy: vi.fn(),
