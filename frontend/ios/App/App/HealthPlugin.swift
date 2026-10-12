@@ -1,5 +1,8 @@
 import Capacitor
 import HealthKit
+// For UIApplication in openSettings(). Capacitor's headers pull UIKit in transitively on the ObjC
+// side, but a Swift module does not inherit another module's imports, so this is not optional.
+import UIKit
 
 /**
  * The iOS half of HealthConnectPlugin.java (#200): finished workouts and weigh-ins go into the
@@ -118,7 +121,11 @@ public class HealthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - permissions
 
-    @objc public func requestPermissions(_ call: CAPPluginCall) {
+    // `override` is required, and the first CI run is where we found out: CAPPlugin already
+    // declares requestPermissions(_:) as the default hook of Capacitor 3's permission pattern
+    // (CAPPlugin.h), so answering that name is an override rather than a new method. Without the
+    // keyword it fails with "overriding declaration requires an 'override' keyword".
+    @objc public override func requestPermissions(_ call: CAPPluginCall) {
         guard available else {
             call.resolve(["granted": false])
             return

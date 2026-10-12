@@ -50,6 +50,30 @@ describe('the Xcode project holds together', () => {
     // Android keeps Health Connect; iOS asks for Health. Same five methods, same record shapes.
     expect(healthSync).toMatch(/registerPlugin\(android \? 'HealthConnect' : 'Health'\)/)
   })
+
+  // The archive failed on this the first time it ever ran: CAPPlugin already declares
+  // requestPermissions(_:) as the default hook of Capacitor 3's permission pattern (CAPPlugin.h),
+  // so a plugin answering that name is an override — and without the keyword, swiftc stops with
+  // "overriding declaration requires an 'override' keyword". Nothing here can compile Swift, but
+  // Capacitor's own header can be read, which is the same question the compiler asks.
+  it('a plugin method Capacitor already declares is marked override', () => {
+    const header = read('node_modules/@capacitor/ios/Capacitor/Capacitor/CAPPlugin.h')
+    const inherited = new Set([...header.matchAll(/^-\s*\([^)]*\)\s*(\w+):/gm)].map(m => m[1]))
+    // If this parse ever stops finding the two permission hooks, the guard below is worthless.
+    expect([...inherited]).toEqual(expect.arrayContaining(['checkPermissions', 'requestPermissions']))
+
+    for (const name of ['SystemBarsPlugin.swift', 'HealthPlugin.swift']) {
+      const swift = read(`ios/App/App/${name}`)
+      const declared = [...swift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1])
+      expect(declared.length, `${name} declares no methods`).toBeGreaterThan(0)
+      for (const method of declared) {
+        const line = swift.split('\n').find(l => l.includes(`func ${method}(`))
+        expect(line, `${name}: ${method} is in pluginMethods but has no func`).toBeTruthy()
+        if (!inherited.has(method)) continue
+        expect(line, `${name}: ${method} overrides CAPPlugin, so it needs 'override'`).toContain('override')
+      }
+    }
+  })
 })
 
 describe('the HealthKit entitlement is wired up', () => {

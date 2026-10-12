@@ -213,9 +213,29 @@ Two things the workflow does **not** do:
   at the maintainer's larger private copy; without it you get the size the Gym visual licence
   allows anywhere, which is legitimate but lower-resolution than the official release.
 
-**Honest caveat:** this workflow has never executed either — I have no GitHub runner here. YAML,
-action versions, runner toolchain and every local assumption are checked, but the first real run
-is the first real test. Same disclaimer upstream puts on its GitLab job.
+**First CI run — done, and it failed usefully.** The workflow executed on 2026-10-12 on
+`github.com/vinayakgupta62/openGym`. Everything up to and including Swift compilation worked:
+`npm ci`, the `VITE_MOBILE=1` build, media staging, `cap sync` (CocoaPods 1.17.0 ran `pod install`
+for real), the `check-mobile-bundle` guard, and `xcodebuild` reaching `SwiftCompile` for all five
+app sources. It stopped on one error:
+
+```
+App/HealthPlugin.swift:121:23: error: overriding declaration requires an 'override' keyword
+    @objc public func requestPermissions(_ call: CAPPluginCall)
+Capacitor.CAPPlugin.requestPermissions: note: overridden declaration is here
+```
+
+`CAPPlugin` already declares `requestPermissions(_:)` as the default hook of Capacitor 3's
+permission pattern (`CAPPlugin.h` line 33), so answering that name is an override. Fixed by adding
+`override`, and `import UIKit` alongside it for `UIApplication` in `openSettings()` — a Swift module
+does not inherit another module's imports, and only `import Capacitor`/`import HealthKit` were
+there. Now guarded by a test that reads `CAPPlugin.h` and asserts any `pluginMethods` name Capacitor
+already declares carries `override` — the compiler's question, asked from JS. Verified by removing
+the keyword and watching the guard fail, then restoring.
+
+Two things the failure confirmed for free: the hand-rolled `project.pbxproj` entries are correct
+(both new Swift files were compiled, in the right target), and **the HealthKit entitlement did not
+break the unsigned build** — the archive never reached a signing step, exactly as predicted.
 
 ## Remaining iOS gaps (not addressed here, ranked)
 
@@ -225,10 +245,11 @@ is the first real test. Same disclaimer upstream puts on its GitLab job.
    back to the page's own chime, which iOS never runs once the WebView is suspended. Android solves
    it with a `specialUse` foreground service + wake lock + exact alarms. See "The rest timer" above
    for the two mechanisms that replace it and which to build first.
-2. **HealthKit is written, but has never been compiled or run.** `HealthPlugin.swift`,
-   `App.entitlements`, the two usage strings and the `health-sync.js` branch are all in place;
-   nothing on this machine can build Swift, so treat it as unverified. The entitlement also has to
-   be enabled on the App ID (Xcode → Signing & Capabilities → + Capability → HealthKit), and a
+2. **HealthKit compiles, but has never run.** The first CI run got `HealthPlugin.swift` through
+   `SwiftCompile` — the reported error was the only one in the file — so it is at least
+   type-correct. Nothing has exercised HealthKit at runtime: authorization, the sync-identifier
+   replacement, and the remove-by-query path are all unproven. The entitlement also has to be
+   enabled on the App ID (Xcode → Signing & Capabilities → + Capability → HealthKit), and a
    **free Apple ID may not provision HealthKit** — if signing fails on it, remove the capability and
    the two `CODE_SIGN_ENTITLEMENTS` lines and the card hides itself, because the plugin then answers
    `unsupported`. The unsigned CI `.ipa` is unaffected either way (code signing is off there).
