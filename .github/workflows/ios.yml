@@ -103,17 +103,31 @@ jobs:
       # Unsigned on purpose: CODE_SIGNING_ALLOWED=NO is what makes this buildable with no Apple
       # account at all. MARKETING_VERSION / CURRENT_PROJECT_VERSION override the placeholders
       # (1.0 / 1) baked into project.pbxproj.
+      #
+      # The log goes to a file and the compiler's own `error:` lines are re-emitted as workflow
+      # commands, so a failed archive says *why* in the run summary (and in the check-run
+      # annotations) instead of only in a log somebody has to open and scroll. Both runs so far
+      # failed with nothing but "Process completed with exit code 65" attached to them, which is a
+      # diagnosis round trip per attempt.
       - name: Archive for a generic iOS device
         working-directory: frontend/ios/App
         run: |
           set -o pipefail
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+          mkdir -p build
+          LOG=build/xcodebuild.log
+          if ! xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$PWD/build/App.xcarchive" \
             MARKETING_VERSION="${{ steps.version.outputs.ver }}" \
             CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            archive | tail -60
+            archive > "$LOG" 2>&1; then
+            grep -E 'error:' "$LOG" | sort -u | head -40 | sed 's/^/::error::/' || true
+            echo "::error::xcodebuild archive failed — the last 40 lines follow"
+            tail -40 "$LOG"
+            exit 1
+          fi
+          tail -5 "$LOG"
 
       # An .ipa is a zip with the .app under Payload/ — that much is still true. The assertions
       # after it are the ones that matter: building the archive is not the same as putting the
