@@ -1,6 +1,12 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '15.5'
+# 16.1, not the 15.5 this started at: the rest timer's Live Activity is ActivityKit (`ActivityContent`,
+# `Activity.request`) and its buttons are App Intents (`LiveActivityIntent`), which refuses to compile
+# below iOS 16 at all and needs iOS 17 to be drawn. Raising it here and in IPHONEOS_DEPLOYMENT_TARGET
+# together is the whole change — the two numbers are one setting written twice (see IOS_HANDOFF.md).
+# The cost is real and is the trade the buttons are: iOS 15 devices (iPhone 6s/7, first SE), which
+# could have run the rest of the app, can no longer install it.
+platform :ios, '16.1'
 use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires
@@ -28,11 +34,11 @@ post_install do |installer|
   assertDeploymentTarget(installer)
   # assertDeploymentTarget only lifts a pod to 14.0, below what current Xcode supports, so every
   # build warned about the pods. Set them to the app's own target (the platform line above and
-  # IPHONEOS_DEPLOYMENT_TARGET in the project, both 15.5), not to some lower number: a pod built
+  # IPHONEOS_DEPLOYMENT_TARGET in the project, both 16.1), not to some lower number: a pod built
   # for an iOS the app does not run on buys nothing and keeps the two out of step.
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.1'
     end
   end
 end

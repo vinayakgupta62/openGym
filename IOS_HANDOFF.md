@@ -72,38 +72,136 @@ carries a valid, current mobile bundle.**
 | `frontend/src/lib/health-sync.js` | Picks `Health` on iOS / `HealthConnect` on Android; same five methods, same record shapes. |
 | `frontend/src/views/Settings.jsx` | The Health card shows on iOS, naming Apple Health and saying what iOS actually reads. |
 | `frontend/src/views/CoachSetup.jsx` | The Android-only `http://` refusal no longer fires on iOS. |
-| `frontend/src/lib/ios-plist.test.js` | **New.** 13 tests guarding the plist keys. |
-| `frontend/src/lib/ios-app.test.js` | **New.** 7 tests guarding the Xcode project and the entitlement. |
-| tests: `system-bars`, `CoachSetup.cleartext`, `CoachSetup.flow`, 9 × `Settings.*` | Mocks gained `isIOS`; iOS cases added. |
+| `frontend/src/lib/rest-alert.js` | **The iOS branch**: books the end of a rest as one local notification via `@capacitor/local-notifications`, plus the single cached `platform()` read and the `nativeEndTone()` flag. Part B added `body` (the notification's one line, built once and handed to the Live Activity verbatim) and `bindNativeRest` also binding the card's buttons. |
+| `frontend/src/store/useUI.js` | `endTone` stays quiet on iOS while that notification is armed, so a rest cannot ring twice. Part B: `resyncAfterRestButton` re-books the alert for a press the app was not in front for. |
+| `frontend/src/lib/rest-activity.js` | **New.** The Live Activity's JS half: start it with the rest's span and its words, end it, and carry the card's button presses back to the page. |
+| `frontend/ios/App/App/RestActivityAttributes.swift` | **New.** The shared attributes: what the card shows, what its buttons say, and the notification's own words for a button that has to move it. |
+| `frontend/ios/App/App/RestIntents.swift` | **New.** The four buttons (Pause/Resume, −15 s, +15 s, Skip) as `LiveActivityIntent`s, which the system performs **in the app's process**; the queue a press waits in when no page is listening. |
+| `frontend/ios/App/App/RestActivityPlugin.swift` | **New.** `start`/`end` the card, and `bind` — the handshake that hands a queued press to the page, with `live` saying whether the app was in front for it. |
+| `frontend/ios/App/AppWidgets/` | **New target.** `RestWidgetBundle.swift` (the lock-screen card and the Dynamic Island, buttons included) + `AppWidgetsInfo.plist`. |
+| `frontend/ios/App/App/HapticsPlugin.swift` | **New.** iOS's half of Settings → Vibrate: CoreHaptics where the hardware has it, the system vibrate behind it. |
+| `frontend/src/lib/sound.js` | `vibrateSupported()` is true in the iPhone app (the WebView cannot buzz; the phone can), and `vibrate()` routes to that plugin there. |
+| `frontend/ios/App/App.xcodeproj/project.pbxproj` | The files above, the new AppWidgets target and its embed phase — and `IPHONEOS_DEPLOYMENT_TARGET` **15.5 → 16.1** (see "The one product decision"). |
+| `frontend/ios/App/Podfile` | The same 16.1, in the platform line and the post-install block. |
+| `.github/workflows/ios.yml` | The packaging step now also asserts the appex is embedded and that both bundles carry App Intents metadata — the two failures that are silent on a phone. |
+| `frontend/src/lib/ios-plist.test.js` | **New.** 14 tests guarding the plist keys (including `NSSupportsLiveActivities`). |
+| `frontend/src/lib/ios-app.test.js` | **New.** 24 tests guarding the Xcode project, the widget target, the shared-file rule, the entitlement, the two numbers two languages agree on, and `override` on Capacitor's own methods. |
+| `frontend/src/lib/rest-activity.test.js` | **New.** The card's binding half: listen before binding, hand every press over, ask again on every return to the front. |
+| tests: `system-bars`, `rest-alert.native`, `useUI.native-rest`, `useUI.silent-buzz`, `sound`, `CoachSetup.cleartext`, `CoachSetup.flow`, 9 × `Settings.*` | Mocks gained `isIOS` / `nativeEndTone` / `iosRestAlert`; iOS cases added. |
 
 Android behaviour is deliberately **unchanged** throughout.
 
-## The rest timer — status
+## The rest timer — parts A and B
 
-Still the largest gap, and the design spec is in hand. Two mechanisms, not one:
+**A. The alert works on iOS.** No native plugin was needed: `@capacitor/local-notifications`
+was already a dependency and already schedules on iOS, so `lib/rest-alert.js` gained an iOS branch
+that books one local notification for the end of the rest. `armRestAlert` reports success on iOS,
+`disarmRestAlert`/`holdRestAlert` cancel it, and the permission is asked once through the same
+plugin the workout reminder already used.
 
-- **A local notification at the rest's end** — reliable, fires even if the app is killed, works on
-  iOS 15.5, no Widget Extension. This alone fixes *"the rest timer does not work on iOS."*
-- **A Live Activity (ActivityKit)** — the lock-screen countdown that ticks with the app suspended,
-  plus Dynamic Island. iOS 16.1+, and it needs a **new Widget Extension target** in the Xcode
-  project.
+Two details that are easy to get wrong, both handled:
 
-**A correction to the spec worth acting on.** The spec says inline controls need iOS 17 (true for
-Live Activities) and gives the plain-notification fallback "Actions: None". But a local
-**notification** can carry up to four `UNNotificationAction` buttons from **iOS 15.5**, and
-selecting one launches the app in the background to handle it — Apple's own documentation example
-is a `TIMER_EXPIRED` category with Snooze/Stop. So Pause / −15s / +15s / Skip works on the current
-deployment target with no Widget Extension at all. That is the cheap path, and it is the one to
-build first.
+- **The sound.** `@capacitor/local-notifications` sets a sound only when one is *named*
+  (`LocalNotificationsPlugin.swift`), so omitting it means **silence** on iOS. The notification
+  names a sound file the app does not bundle, on purpose — `UNNotificationSound(named:)` falls back
+  to the system sound when it cannot find the file. With Settings → Sound off, nothing is named and
+  the alert is silent. **The chosen tone (chime / bell / beep / whistle / soft) still cannot play
+  while the app is suspended** — that needs those six rendered to audio files the app bundles, and
+  it is the one item from part A's list still open.
+- **A double ring.** Capacitor presents a notification delivered to a *foreground* app **with** its
+  sound (`LocalNotificationsHandler.willPresent` returns `.sound, .alert`), while Android's native
+  side deliberately stays quiet in front (`RestAlertPlugin.appInFront`) and lets the page's chime be
+  the only sound. So on iOS the page must not also chime: `nativeEndTone()` reports whether a
+  notification is armed that will really make a noise, and `useUI.endTone` returns early on it. It
+  is false when permission was refused (nothing will sound, so the page's chime has to stand in)
+  and false during a timed hold (`startWork` → `stopRest` → `disarmRestAlert`).
 
-**Also note the JS gate, not just the Swift.** `lib/rest-alert.js` returns `null` from `restPlugin()`
-unless `isAndroid()`, and `deliver()` returns the literal string `'android'`. Adding a Swift
-`RestAlert` is not enough — that gate and `system-bars`-style branch have to move too.
+**B. The lock-screen countdown, the Dynamic Island, and the buttons — built.** An ActivityKit Live
+Activity (iOS 16.1+) drawn by a new **AppWidgets** widget-extension target, with four interactive
+buttons on it (iOS 17+).
 
-The spec's own P0 is the real open problem and it is right: a countdown reaching 0:00 does **not**
-guarantee the Live Activity redraws as Ready while the app is suspended. A local notification
-cannot update Live Activity content; that needs an ActivityKit push. Keep "the alert fires" and
-"the interface says Ready" as two separate behaviours.
+What it is made of, and why each piece is where it is:
+
+| Piece | What it does |
+|---|---|
+| `RestActivityAttributes.swift` (both targets) | The card's content and its fixed words. ActivityKit hands the same `ContentState` to the app and to the widget extension, so the file is compiled into **both** Sources phases — a file in one target only is a type the other cannot see. |
+| `AppWidgets/RestWidgetBundle.swift` | The drawing. The clock and the bar are the system's own timers (`Text(timerInterval:)`, `ProgressView(timerInterval:)`), which keep running while the app is suspended. Buttons only in the two presentations Apple allows them in: the lock-screen card and the **expanded** Dynamic Island. |
+| `RestIntents.swift` (both targets) | The four buttons as `LiveActivityIntent`s. Apple is explicit that these are performed **in the app's process** and must be in the **app target** — which is the whole reason a tap can move the card, move the notification and tell the page. |
+| `RestActivityPlugin.swift` | `start`/`end`, and `bind`: the handshake that hands a press to the page when there is one, and leaves it queued when there is not. |
+
+Four decisions worth knowing, because each one is a trap:
+
+- **No App Group.** The obvious design shares the timer between the widget extension and the app
+  through an App Group. It is not needed: a `LiveActivityIntent` runs *in the app*, so the queue is
+  the app's own `UserDefaults` and the extension never reads it. An App Group would add an
+  entitlement to both targets and therefore a provisioning profile that carries it — real risk on a
+  free Apple ID — for nothing.
+- **A press is queued, not delivered.** A button can be pressed with the app suspended, or not
+  running at all. So the intent (1) moves the Live Activity, (2) moves or cancels the local
+  notification for the end, (3) queues the same change, in the shape Android's notification buttons
+  already send (`RestAlertPlugin.emit`). The page gets it through `bind()` — at startup and on every
+  return to the front — or immediately if it is listening *and* the app is in front. One field
+  Android never sends travels with it: `live`, which says whether the app was there for the press.
+  A press it was not there for arrives after the app has re-armed the rest from its own saved copy
+  (`restoreRest`) — the state the button was pressed to change — so the app books the end again from
+  the timer the press left behind (`useUI.resyncAfterRestButton`). A press it *was* there for has
+  already moved everything natively, and re-booking it would restart a card the user is looking at.
+- **"Ready" while suspended — the spec's P0 — is the stale date, not an update.** Nothing can wake
+  the app to redraw the card at 0:00, so the content is given `staleDate: endsAt` and the widget
+  draws the Ready face off `context.isStale`. The system redraws around then anyway, because its own
+  countdown has run out. This is the one behaviour here that no test can prove: it depends on
+  WidgetKit re-rendering at the stale date, which it should and which only a phone can confirm.
+- **The notification's words are not rebuilt in Swift.** A button that moves the end re-books the
+  notification with the title and body the app gave it, verbatim, because the copy belongs to the
+  app's i18n and Swift has no business re-deriving it. The visible consequence is small and honest:
+  a rest given another 15 s from the lock screen keeps the length it started with in that one line
+  of text. The card, which is what is actually counting down, is exact.
+
+**On a locked phone the buttons need an unlock.** Apple's own wording: *"On a locked device, buttons
+and toggles are inactive and the system doesn't perform actions unless a person authenticates and
+unlocks their device."* That is iOS's rule, not a gap here. In the Dynamic Island, with the phone
+already unlocked, a tap works directly.
+
+### The one product decision part B forced
+
+**The app's minimum iOS is now 16.1, not 15.5** (`IPHONEOS_DEPLOYMENT_TARGET` in the project and
+`platform :ios` in the Podfile — one setting written twice, both changed together).
+
+The reason is not the card, which is ActivityKit and 16.1 anyway. It is the **buttons**: they need
+App Intents, and App Intents does not compile below iOS 16 at all — with a 15.5 target, `import
+AppIntents` in the app target is a build error, and a silently missing `Metadata.appintents` is a
+card whose buttons do nothing. There is no version of "buttons on the Live Activity" that keeps
+iOS 15.
+
+What that costs: iPhone 6s, iPhone 7 and the first SE, which can run iOS 15 but not 16, can no
+longer install the app. Everything else in openGym — the web app, Android — is untouched. If that
+trade is not wanted, the buttons are the thing to drop, not the deployment target: remove
+`RestIntents.swift` from both targets, the `Button(intent:)` row in the widget, and put the two
+numbers back to 15.5. The card itself would keep working on 16.1+.
+
+### Vibrate now works on an iPhone
+
+The second thing that was asked for, and a genuine bug rather than a platform limit: iOS has no
+`navigator.vibrate`, so Settings → Vibrate read *"Not on iPhone"* and the switch could not be
+turned on — in Settings and in the workout sheet's Timer alerts. An iPhone can buzz; it has to be
+asked from native code. `HapticsPlugin.swift` is that (CoreHaptics for iPhone 8 and later, so
+`navigator.vibrate`'s on/off pattern is reproduced as it means: `[200, 100, 200]` is buzz-pause-buzz;
+`AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)` is the floor for older hardware, an iPad, or
+an engine that will not start in Low Power Mode).
+
+`vibrateSupported()` is true in the iPhone **app** and false in Safari on an iPhone, which is the
+honest line: the WebView still cannot buzz, the app can. Android is unchanged, including the
+separate "Vibrate on silent too" row, which stays Android-only.
+
+Haptics stop when iOS suspends the app, so a rest that ends with the phone locked is still the
+notification's job — and iOS buzzes for that one itself, as the user's own notification haptics.
+
+### One trap for whoever does C.** `lib/rest-alert.js` used to call `mobile.js`'s `isAndroid()` /
+`isIOS()` at every decision point. That is now a single cached `platform()` read, because several
+`await import('@capacitor/core')` calls inside one arm/hold/disarm cycle produced a genuinely
+reproducible wrong answer — an iOS arm resolving down the Android branch and returning `false`.
+Whatever the exact interleaving, one read cannot disagree with itself. `iosRestAlert()` is the same
+read, exposed for `useUI`.
 
 ### Why the ATS change is the one that matters
 
@@ -237,15 +335,23 @@ Two things the failure confirmed for free: the hand-rolled `project.pbxproj` ent
 (both new Swift files were compiled, in the right target), and **the HealthKit entitlement did not
 break the unsigned build** — the archive never reached a signing step, exactly as predicted.
 
-## Remaining iOS gaps (not addressed here, ranked)
+## Remaining iOS gaps (ranked)
 
-1. **The rest-over alert does not fire on iOS with the screen locked.** `frontend/src/lib/rest-alert.js`
-   is Android-only by construction — *"iOS has no RestAlert, and every call to it there, addListener
-   included, rejects"* — and `toneNative()`/`buzzAsAlarm()` resolve `false` on iOS, so callers fall
-   back to the page's own chime, which iOS never runs once the WebView is suspended. Android solves
-   it with a `specialUse` foreground service + wake lock + exact alarms. See "The rest timer" above
-   for the two mechanisms that replace it and which to build first.
-2. **HealthKit compiles, but has never run.** The first CI run got `HealthPlugin.swift` through
+1. **The chosen end tone cannot play on iOS while the app is suspended.** The alert is audible — it
+   uses the system notification sound — but a notification's sound has to be a bundled audio file,
+   and the six tones in `lib/rest-sounds.js` exist only as Web Audio and `RestTone.java`. Rendering
+   them to WAV (or CAF) for the app bundle, and naming the chosen one in the notification, would
+   close it. This is the last item of part A's list, and the only one left.
+2. **"Ready" on a suspended phone is a mechanism, not a verified behaviour.** The card goes stale at
+   `endsAt` and the widget draws Ready off `context.isStale` (part B above). It rests on WidgetKit
+   re-rendering at the stale date, which is what the system's own countdown does, but nothing here
+   can prove it: start a rest, lock the phone, and watch whether the card says Ready at 0:00 or sits
+   at 0:00 until the app is opened.
+3. **Live Activities can be switched off**, per app, in iOS Settings. The app asks and then treats a
+   refusal as "no card" (`RestActivityPlugin` resolves `started: false` and nothing is surfaced),
+   which is right — the notification is still the alert — but no row in Settings says where to turn
+   it on.
+4. **HealthKit compiles, but has never run.** The first CI run got `HealthPlugin.swift` through
    `SwiftCompile` — the reported error was the only one in the file — so it is at least
    type-correct. Nothing has exercised HealthKit at runtime: authorization, the sync-identifier
    replacement, and the remove-by-query path are all unproven. The entitlement also has to be
@@ -253,24 +359,51 @@ break the unsigned build** — the archive never reached a signing step, exactly
    **free Apple ID may not provision HealthKit** — if signing fails on it, remove the capability and
    the two `CODE_SIGN_ENTITLEMENTS` lines and the card hides itself, because the plugin then answers
    `unsupported`. The unsigned CI `.ipa` is unaffected either way (code signing is off there).
-3. **Importing weight from Apple Health is still not implemented.** The iOS plugin asks for read
+5. **Importing weight from Apple Health is still not implemented.** The iOS plugin asks for read
    access only to find openGym's own records so it can update or remove them. Reading body mass to
    *import* weigh-ins would cover the "Apple Health weight exports" flow openGym does via CSV today
    — and would make iOS go further than write-only Health Connect.
-4. **`UIRequiredDeviceCapabilities` is still `armv7`** — the stock Capacitor template value, not
+6. **`UIRequiredDeviceCapabilities` is still `armv7`** — the stock Capacitor template value, not
    something this port introduced. Worth confirming against a real `xcodebuild archive` on the Mac
    (modern builds are arm64-only) before any distribution.
-5. **The app name is not localized**, though the app ships 19 languages. There is no
+7. **The app name is not localized**, though the app ships 19 languages. There is no
    `CFBundleLocalizations` or localized `InfoPlist.strings`, so iOS shows "openGym" everywhere.
    Cosmetic.
-6. **No in-app updater on iOS**, by design — `Settings.jsx` gates the updater on `isAndroid()`
+8. **No in-app updater on iOS**, by design — `Settings.jsx` gates the updater on `isAndroid()`
    (`android && …`), so iOS correctly hides the "check for updates" card.
-7. **The `build:ios` GitLab job has never executed** (see above), so that unsigned-`.ipa` path is
+9. **The `build:ios` GitLab job has never executed** (see above), so that unsigned-`.ipa` path is
    unproven — the GitHub one is the working route.
-8. **The Health card's iOS wording is untranslated.** The ten new strings in `Settings.jsx` fall
+10. **The Health card's iOS wording is untranslated.** The ten new strings in `Settings.jsx` fall
    back to English (`lib/i18n.js` returns the source string for a key a pack lacks), so the card is
    English in the other 18 languages until the locale packs are updated. Android's strings were
    left byte-for-byte as they were, so nothing regressed there.
+
+The four button labels on the card are *not* on that list: they come from the app's own translations
+(`buildRestAlert`'s `pause`/`resume`/`minus`/`plus`/`skip`, the same words Android's notification
+actions use), handed to the widget through the attributes. Only the `LiveActivityIntent` *titles* are
+English, and `isDiscoverable = false` keeps them out of Shortcuts and Spotlight — nothing a user
+reads.
+
+## The honest test on the phone
+
+Everything below is JavaScript-verified here; none of it has run on a device. In the order worth
+trying:
+
+1. **The countdown appears at all.** Start a rest → lock the phone. The card should be on the lock
+   screen counting down, with the bar in the user's accent, and the Dynamic Island should show it
+   with the app open.
+2. **The alert still fires** (part A, unchanged): the notification at the end, with sound.
+3. **It does not ring twice** with the app open. If it does, `nativeEndTone()` is not reporting what
+   it thinks it is.
+4. **Ready at 0:00** (gap 2 above): does the card flip to Ready on its own, or sit at 0:00?
+5. **The buttons.** On the lock screen they need an unlock first (iOS's rule). In the Dynamic Island
+   they are direct: Pause should hold the clock and flip to Resume, ±15 s should move it, Skip
+   should take the card down.
+6. **The buttons reach the app.** Tap +15 s on the lock screen, then open the app: the bar should be
+   where the card said it was, not 15 seconds behind it. This is the queue + `bind()` path, and it
+   is the piece with the most moving parts.
+7. **Vibrate.** Settings → When a rest ends → Vibrate should now be switchable on an iPhone (it used
+   to read "Not on iPhone"), and the end of a rest with the app open should buzz.
 
 ## Environment caveats on this machine
 
@@ -285,8 +418,17 @@ Not caused by anything here — worth knowing so a red suite is not misread:
   becomes `#!/usr/bin/env node\r`, which the Vite 8 / rolldown transform rejects. A shebang-less
   copy imports fine. Linux CI checks out LF and is unaffected. **No change made** — editing the
   file would only paper over this machine's git config.
+- **Vitest cannot start at all under the DSH file sandbox**: loading `vite.config.js` runs Vite's
+  Windows network-drive check (`child_process.exec('net use')`), which the sandbox refuses with
+  `spawn EPERM`. Not a repo problem; the suite needs the sandbox off.
 
-Baseline and after are identical: `Test Files 2 failed | 400 passed`, `Tests 9 failed` — against the
-same two files failing now, `402 passed` / `5069 passed`. The added tests are the two iOS guards
-(`ios-plist.test.js`, `ios-app.test.js`), the iOS cases in `system-bars`/`CoachSetup.cleartext`, and
-`isIOS` stubs in the test mocks. **No regressions.**
+Baseline and after, same two files failing: `Test Files 2 failed | 403 passed`, `Tests 9 failed |
+5105 passed` — against part A's `402 passed` / `5069 passed` (and `400` / `5069` before it). The 36
+new tests are the Live Activity and its buttons (`rest-activity.test.js`, the new cases in
+`rest-alert.native.test.js` and `useUI.native-rest.test.js`), the haptics block in `sound.test.js`,
+the `NSSupportsLiveActivities` guard, and the widget/intents half of `ios-app.test.js`. **No
+regressions.**
+
+One test earned its keep before the build ever ran: `ios-app.test.js` caught
+`RestActivityPlugin.swift` missing from the app target's Sources phase — a plugin file that compiles
+nothing, so the card's buttons would have been inert on the phone with every JS test still green.

@@ -19,6 +19,7 @@
 // The context is suspended again a second after the last tone: an idle context otherwise keeps
 // rendering silence for the rest of the page, and under 'playback' keeps the phone's audio
 // session busy. (Suspending does NOT hand the phone back to a paused music app — see 1.)
+import { MOBILE } from './mobile.js'
 import { REST_SOUNDS } from './rest-sounds.js'
 
 let audioCtx = null
@@ -150,7 +151,8 @@ export const playOnSilentSupported = () => {
   return appleTouchDevice()
 }
 // An iPhone or iPad, in Safari, a home-screen web app or the iOS app (an iPad reports itself as
-// a Mac with a touch screen). Settings says "Not on iPhone" on the Vibrate row here.
+// a Mac with a touch screen). Settings asks it for the "Play sounds when the phone is on silent"
+// row, and for what the Vibrate row should say where no native haptics are behind it.
 export const appleTouchDevice = () => {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -166,12 +168,42 @@ export function setPlayOnSilent(on) {
 // by App.jsx, so the places that buzz do not each have to read the profile. On by default.
 let buzz = true
 export function setVibrate(on) { buzz = on !== false }
-// Offered where the browser can buzz at all: iOS has no navigator.vibrate. The Android app needs
-// android.permission.VIBRATE in its manifest, without which the WebView drops every call.
-export const vibrateSupported = () => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
+// iOS has no navigator.vibrate at all — that is the WebView's limitation, not the phone's, and it
+// is why this row used to say "Not on iPhone". The app carries its own plugin instead
+// (ios/App/App/HapticsPlugin.swift: CoreHaptics, with the old system vibrate behind it), so the
+// toggle means something there too. Only in the app — Safari on an iPhone still cannot buzz.
+const canBuzzNatively = () => MOBILE && appleTouchDevice()
+export const vibrateSupported = () => typeof navigator !== 'undefined' &&
+  (typeof navigator.vibrate === 'function' || canBuzzNatively())
+
+// The native haptics plugin, registered once and kept inside an object, as in rest-alert.js: a
+// Capacitor plugin proxy answers `then`, so a promise resolved with the bare proxy never settles.
+let hapticsP = null
+const hapticsPlugin = () => hapticsP || (hapticsP = (async () => {
+  if (!canBuzzNatively()) return null
+  const { registerPlugin } = await import('@capacitor/core')
+  return { Haptics: registerPlugin('Haptics') }
+})().catch(() => null))
+
+// navigator.vibrate's shape: one duration, or on/off durations starting with an on. The plugin
+// walks the same array the same way, so a pattern means the same thing on both platforms.
+const patternOf = p => {
+  const list = Array.isArray(p) ? p : [p]
+  const ms = list.filter(n => Number.isFinite(n) && n >= 0).map(Math.round).slice(0, 20)
+  return ms.length ? ms : [200]
+}
+
 export function vibrate(p) {
   if (!buzz) return
-  try { navigator.vibrate && navigator.vibrate(p) } catch (e) { /* */ }
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    try { navigator.vibrate(p) } catch (e) { /* */ }
+    return
+  }
+  // Fire and forget: nobody waits on a buzz, and the plugin may not be there at all.
+  if (!canBuzzNatively()) return
+  hapticsPlugin()
+    .then(plugin => plugin && plugin.Haptics.vibrate({ pattern: patternOf(p) }))
+    .catch(() => {})
 }
 
 // Settings → "Vibrate when the phone is on silent" (#375), Android app only. The page's buzz is an

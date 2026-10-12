@@ -91,6 +91,15 @@ describe('iOS Info.plist: the identity matches the build', () => {
   })
 })
 
+describe('iOS Info.plist: the rest timer’s Live Activity', () => {
+  // #296 on iOS: without this key `Activity.request` fails, lib/rest-activity.js reports "nothing
+  // started" (its caller treats that as "no card", not as an error), and the lock-screen countdown
+  // and the Dynamic Island simply never appear. A silent absence, so it is pinned here.
+  it('Live Activities are declared', () => {
+    expect(plist).toMatch(/<key>NSSupportsLiveActivities<\/key>\s*<true\/>/)
+  })
+})
+
 describe('iOS Info.plist: comments are still valid XML', () => {
   // The same trap android-backup.test.js pins for the Android build (v1.3.6): a `--` inside a
   // comment ends it early and the file stops parsing. Xcode then fails with something unrelated.

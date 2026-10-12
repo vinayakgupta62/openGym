@@ -12,6 +12,9 @@ vi.mock('../lib/rest-alert.js', () => ({
   disarmRestAlert: vi.fn(),
   bindNativeRest: vi.fn(),
   toneNative: vi.fn(() => Promise.resolve(true)),
+  // See useUI.native-rest.test.js: false is the Android answer.
+  nativeEndTone: vi.fn(() => false),
+  iosRestAlert: vi.fn(() => Promise.resolve(false)),
 }))
 vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn() }))
 vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })) }))

@@ -20,7 +20,39 @@
 		AA0100000000000000000004 /* PrintPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000003 /* PrintPlugin.m */; };
 		AA0200000000000000000002 /* SystemBarsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000001 /* SystemBarsPlugin.swift */; };
 		AA0200000000000000000004 /* HealthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000003 /* HealthPlugin.swift */; };
+		AA0300000000000000000002 /* HapticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0300000000000000000001 /* HapticsPlugin.swift */; };
+		AA0400000000000000000002 /* RestActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0400000000000000000001 /* RestActivityAttributes.swift */; };
+		AA0400000000000000000003 /* RestActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0400000000000000000001 /* RestActivityAttributes.swift */; };
+		AA0500000000000000000002 /* RestIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0500000000000000000001 /* RestIntents.swift */; };
+		AA0600000000000000000002 /* RestActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0600000000000000000001 /* RestActivityPlugin.swift */; };
+		AA0500000000000000000003 /* RestIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0500000000000000000001 /* RestIntents.swift */; };
+		AA0400000000000000000005 /* RestWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0400000000000000000004 /* RestWidgetBundle.swift */; };
+		AA0400000000000000000008 /* AppWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA0400000000000000000007 /* AppWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA0400000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA040000000000000000000A;
+			remoteInfo = AppWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AA040000000000000000000E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AA0400000000000000000008 /* AppWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -33,6 +65,13 @@
 		AA0200000000000000000001 /* SystemBarsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemBarsPlugin.swift; sourceTree = "<group>"; };
 		AA0200000000000000000003 /* HealthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthPlugin.swift; sourceTree = "<group>"; };
 		AA0200000000000000000005 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		AA0300000000000000000001 /* HapticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsPlugin.swift; sourceTree = "<group>"; };
+		AA0400000000000000000001 /* RestActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityAttributes.swift; sourceTree = "<group>"; };
+		AA0500000000000000000001 /* RestIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestIntents.swift; sourceTree = "<group>"; };
+		AA0600000000000000000001 /* RestActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityPlugin.swift; sourceTree = "<group>"; };
+		AA0400000000000000000004 /* RestWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestWidgetBundle.swift; sourceTree = "<group>"; };
+		AA0400000000000000000006 /* AppWidgetsInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = AppWidgetsInfo.plist; sourceTree = "<group>"; };
+		AA0400000000000000000007 /* AppWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -52,6 +91,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA040000000000000000000C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -67,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3061FED79650016851F /* App */,
+				AA0400000000000000000009 /* AppWidgets */,
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
@@ -77,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				AA0400000000000000000007 /* AppWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,6 +140,10 @@
 				AA0200000000000000000001 /* SystemBarsPlugin.swift */,
 				AA0200000000000000000003 /* HealthPlugin.swift */,
 				AA0200000000000000000005 /* App.entitlements */,
+				AA0300000000000000000001 /* HapticsPlugin.swift */,
+				AA0400000000000000000001 /* RestActivityAttributes.swift */,
+				AA0500000000000000000001 /* RestIntents.swift */,
+				AA0600000000000000000001 /* RestActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -111,6 +163,15 @@
 			name = Pods;
 			sourceTree = "<group>";
 		};
+		AA0400000000000000000009 /* AppWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				AA0400000000000000000004 /* RestWidgetBundle.swift */,
+				AA0400000000000000000006 /* AppWidgetsInfo.plist */,
+			);
+			path = AppWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -123,15 +184,34 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
+				AA040000000000000000000E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AA040000000000000000000F /* PBXTargetDependency */,
 			);
 			name = App;
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AA040000000000000000000A /* AppWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0400000000000000000011 /* Build configuration list for PBXNativeTarget "AppWidgets" */;
+			buildPhases = (
+				AA040000000000000000000B /* Sources */,
+				AA040000000000000000000C /* Frameworks */,
+				AA040000000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AppWidgets;
+			productName = AppWidgets;
+			productReference = AA0400000000000000000007 /* AppWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -145,6 +225,10 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					AA040000000000000000000A = {
+						CreatedOnToolsVersion = 16.4;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -165,6 +249,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				AA040000000000000000000A /* AppWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -180,6 +265,13 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA040000000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,10 +324,32 @@
 				AA0100000000000000000004 /* PrintPlugin.m in Sources */,
 				AA0200000000000000000002 /* SystemBarsPlugin.swift in Sources */,
 				AA0200000000000000000004 /* HealthPlugin.swift in Sources */,
+				AA0300000000000000000002 /* HapticsPlugin.swift in Sources */,
+				AA0400000000000000000002 /* RestActivityAttributes.swift in Sources */,
+				AA0500000000000000000002 /* RestIntents.swift in Sources */,
+				AA0600000000000000000002 /* RestActivityPlugin.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA040000000000000000000B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0400000000000000000003 /* RestActivityAttributes.swift in Sources */,
+				AA0400000000000000000005 /* RestWidgetBundle.swift in Sources */,
+				AA0500000000000000000003 /* RestIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA040000000000000000000F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA040000000000000000000A /* AppWidgets */;
+			targetProxy = AA0400000000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -305,7 +419,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -356,7 +470,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
@@ -373,7 +487,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
@@ -394,11 +508,47 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ch.duartesantos.opengym;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA0400000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AppWidgets/AppWidgetsInfo.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ch.duartesantos.opengym.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA0400000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AppWidgets/AppWidgetsInfo.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ch.duartesantos.opengym.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -422,6 +572,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0400000000000000000011 /* Build configuration list for PBXNativeTarget "AppWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0400000000000000000012 /* Debug */,
+				AA0400000000000000000013 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

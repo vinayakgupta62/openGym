@@ -95,6 +95,12 @@
 	<string>Used to save the workouts you finish and the weigh-ins you log to Apple Health.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Used to find the workouts and weigh-ins openGym saved to Apple Health, so they can be updated, or removed again when you turn the feature off.</string>
+	<!-- #296: the rest countdown on the lock screen and in the Dynamic Island, drawn by the
+	     AppWidgets extension (ios/App/AppWidgets/). This key is what turns Live Activities on for
+	     the app at all — without it Activity.request fails, lib/rest-activity.js quietly reports
+	     that nothing started, and the notification is left doing the alerting on its own. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<!-- The iOS half of the pair with android/app/src/main/res/xml/network_security_config.xml.
 	     Issues #428, #329: the app talks only to addresses its own user typed in — their openGym,
 	     their Coach endpoint — and plenty of those run on a home network over plain http, which the

@@ -14,6 +14,11 @@ vi.mock('../lib/rest-alert.js', () => ({
   disarmRestAlert: vi.fn(),
   bindNativeRest: vi.fn(cb => { h.native = cb }),
   toneNative: vi.fn(() => Promise.resolve(true)),
+  // Android throughout, where the page's chime and the native tone are the only sounds; false is
+  // what iOS answers off its own branch, and its own tests cover that (lib/rest-alert.native.test.js).
+  nativeEndTone: vi.fn(() => false),
+  // The one queued press test below is iOS's; everywhere else this says no and nothing is re-booked.
+  iosRestAlert: vi.fn(() => Promise.resolve(false)),
 }))
 vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn() }))
 vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })) }))
@@ -21,7 +26,7 @@ vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })
 import { useUI } from './useUI.js'
 import { useStore } from './useStore.js'
 import { api } from '../lib/api.js'
-import { armRestAlert, disarmRestAlert, holdRestAlert } from '../lib/rest-alert.js'
+import { armRestAlert, disarmRestAlert, holdRestAlert, iosRestAlert } from '../lib/rest-alert.js'
 import { beep, chime } from '../lib/sound.js'
 import { toneNative } from '../lib/rest-alert.js'
 
@@ -41,7 +46,7 @@ beforeEach(() => {
   originalSettings = useStore.getState().S
   useStore.setState({ S: { ...originalSettings, sound: true, timerFlash: false }, user: null })
   useUI.setState({ timer: null, timerFlashId: 0 })
-  for (const f of [armRestAlert, holdRestAlert, disarmRestAlert, beep, chime, api, toneNative]) f.mockClear()
+  for (const f of [armRestAlert, holdRestAlert, disarmRestAlert, beep, chime, api, toneNative, iosRestAlert]) f.mockClear()
   hide(false)
 })
 afterEach(() => {
@@ -228,5 +233,43 @@ describe('the notification’s own buttons', () => {
     useUI.getState().startRest(90)
     h.native({ type: 'skip' })
     expect(useUI.getState().timer).toBe(null)
+  })
+
+  // iOS only, and only for a press the app was not in front for (lib/rest-activity.js hands those
+  // over with `live: false`). The button moved the card and the notification for the end in the
+  // app's own process; this app, coming back up, had just re-armed the rest from its saved copy
+  // (restoreRest) — the state the button was pressed to change. So the alert is booked again from
+  // the timer the press left behind, and the card and the app agree.
+  it('re-books the iOS alert for a press the app was not there for', async () => {
+    iosRestAlert.mockResolvedValueOnce(true)
+    useUI.getState().startRest(90)
+    vi.advanceTimersByTime(10_000)
+    h.native({ type: 'pause', leftMs: 80_000, totalMs: 90_000, endsAt: 0, paused: true, live: false })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useUI.getState().timer).toMatchObject({ left: 80, paused: true })
+    expect(holdRestAlert).toHaveBeenLastCalledWith(80, 90)
+  })
+
+  it('re-books the moved end when the button was +15 s', async () => {
+    iosRestAlert.mockResolvedValueOnce(true)
+    useUI.getState().startRest(60)
+    const before = armRestAlert.mock.calls.length
+    const endsAt = Date.now() + 75_000
+    h.native({ type: 'adjust', leftMs: 75_000, totalMs: 75_000, endsAt, paused: false, live: false })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(armRestAlert.mock.calls.length).toBe(before + 1)
+    expect(armRestAlert).toHaveBeenLastCalledWith(endsAt, expect.objectContaining({ totalSec: 75 }))
+  })
+
+  // A press the app *was* in front for moved both natively already (RestIntents.swift): re-booking
+  // it here would restart a card the user is looking at for no reason.
+  it('leaves the booking alone for a press the app was there for', async () => {
+    useUI.getState().startRest(90)
+    const before = armRestAlert.mock.calls.length
+    h.native({ type: 'pause', leftMs: 80_000, totalMs: 90_000, endsAt: 0, paused: true, live: true })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(iosRestAlert).not.toHaveBeenCalled()
+    expect(holdRestAlert).not.toHaveBeenCalled()
+    expect(armRestAlert.mock.calls.length).toBe(before)
   })
 })

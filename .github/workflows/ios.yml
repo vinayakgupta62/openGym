@@ -115,10 +115,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             archive | tail -60
 
-      # An .ipa is a zip with the .app under Payload/ — that much is still true. The assertion
-      # after it is the one that matters: building the archive is not the same as putting the
-      # *mobile* bundle in it. check-mobile-bundle verified the source tree; this reads the
-      # bundle that actually landed in the package, which is what a phone would open.
+      # An .ipa is a zip with the .app under Payload/ — that much is still true. The assertions
+      # after it are the ones that matter: building the archive is not the same as putting the
+      # *mobile* bundle in it, and it is not the same as shipping a widget extension either.
+      # check-mobile-bundle verified the source tree; this reads the bundle that actually landed in
+      # the package, which is what a phone would open.
       - name: Package the .ipa and prove it holds the mobile bundle
         working-directory: frontend/ios/App
         run: |
@@ -132,6 +133,19 @@ jobs:
           grep -Eq 'name="opengym-flavor"[[:space:]]+content="mobile"' "$INDEX" \
             || { echo "::error::the bundle inside the .ipa is not the mobile build"; exit 1; }
           echo "the packaged bundle is the mobile build"
+
+          # The rest timer's Live Activity (#296) lives in an app extension, and the two ways it can
+          # go missing are both silent on a phone: an appex that never got embedded means no card at
+          # all, and an app with no App Intents metadata means a card whose buttons do nothing when
+          # tapped — `Button(intent:)` cannot resolve an intent the bundle does not describe. Neither
+          # fails the build on its own, so they are asserted here instead.
+          EXTN="$APP/PlugIns/AppWidgets.appex"
+          test -d "$EXTN" || { echo "::error::AppWidgets.appex is not embedded — no lock-screen countdown"; exit 1; }
+          test -d "$APP/Metadata.appintents" \
+            || { echo "::error::the app has no App Intents metadata — the card's buttons would do nothing"; exit 1; }
+          test -d "$EXTN/Metadata.appintents" \
+            || { echo "::error::the widget extension has no App Intents metadata"; exit 1; }
+          echo "the Live Activity extension and its App Intents metadata are in the package"
 
           rm -rf Payload && mkdir Payload
           cp -R "$APP" Payload/

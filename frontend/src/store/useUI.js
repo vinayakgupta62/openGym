@@ -6,7 +6,7 @@ import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { deviceId } from '../lib/push.js'
 import { MOBILE } from '../lib/mobile.js'
-import { armRestAlert, bindNativeRest, disarmRestAlert, holdRestAlert, toneNative } from '../lib/rest-alert.js'
+import { armRestAlert, bindNativeRest, disarmRestAlert, holdRestAlert, iosRestAlert, nativeEndTone, toneNative } from '../lib/rest-alert.js'
 import { useStore } from './useStore.js'
 import { REST_MAX } from '../lib/duration.js'
 import { accentValue } from '../lib/accent.js'
@@ -210,6 +210,12 @@ const runRest = (set, get) => {
 function endTone(enabled, kind) {
   if (!enabled) return
   if (!MOBILE) { chime(enabled, kind); return }
+  // iOS is the exception, and the only one: its rest alert *is* a notification, and Capacitor
+  // presents one delivered to a foreground app with its sound, so the page has to stay quiet there
+  // or the end of a rest rings twice. `nativeEndTone` is true only while that notification is
+  // armed and will really make a noise — a rest whose notifications were refused still gets this
+  // chime, and a timed hold never arms one at all (startWork() → stopRest() → disarmRestAlert()).
+  if (nativeEndTone()) return
   toneNative(kind === true ? 'classic' : kind).then(ok => { if (!ok) chime(enabled, kind) })
 }
 
@@ -532,6 +538,25 @@ restoreWork()
 // Buttons on the rest notification (pause, ±15s, skip) change the countdown in the
 // service first, then mirror that into the in-app timer. skip ends it. Seconds round up, as the
 // notification's clock does, so a pause in the last half second still holds a second here.
+//
+// On iOS the same four buttons live on the Live Activity instead (its own RestIntents.swift), and
+// they arrive here through lib/rest-activity.js in this same shape — with one field Android never
+// sends: `live`. A press the app was in front for already moved the card *and* the notification for
+// the end in native code, so there is nothing left to book. A press it was not there for was queued
+// by the app and handed over on the way back up — after this app had already re-armed the rest from
+// its own saved copy (restoreRest), which is the very state the button was pressed to change. Those
+// are the ones re-booked below, from the timer this just applied.
+const resyncAfterRestButton = ev => {
+  if (ev.live !== false) return
+  iosRestAlert().then(ios => {
+    if (!ios) return
+    const tm = useUI.getState().timer
+    if (!tm) return
+    if (tm.paused) holdRestAlert(tm.left, tm.total)
+    else bookRestEnd(tm.endsAt, tm.total, tm.kind)
+  }).catch(() => { /* the card and the notification are the app's to fix, not the timer's */ })
+}
+
 bindNativeRest(ev => {
   if (!ev) return
   if (ev.type === 'skip') { useUI.getState().stopRest(); return }
@@ -539,4 +564,5 @@ bindNativeRest(ev => {
   if (!(left > 0)) return
   const total = Math.max(left, Math.round((ev.totalMs || 0) / 1000))
   useUI.getState().followNativeRest({ endsAt: ev.endsAt, left, total, paused: !!ev.paused })
+  resyncAfterRestButton(ev)
 })

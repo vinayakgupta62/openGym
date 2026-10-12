@@ -3,6 +3,9 @@
 // the plugin is a Capacitor proxy that answers `then` with a native call that never settles, so
 // it must never become the value of a promise (the Coach hang, #42): here that would hang every
 // rest alert call.
+//
+// The Live Activity's *binding* half — the listener, `bind()`, and the re-bind on every return to
+// the front — is lib/rest-activity.test.js, which is the module that owns it and needs a DOM for it.
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 
@@ -10,16 +13,22 @@ const h = vi.hoisted(() => {
   vi.stubEnv('VITE_MOBILE', '1')   // lib/mobile.js: MOBILE = import.meta.env.VITE_MOBILE === '1'
   const store = new Map()
   vi.stubGlobal('localStorage', { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), clear: () => store.clear() })
-  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null }
+  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null, ln: [], activity: [] }
 })
 
 // Shaped like the proxy registerPlugin() returns: every property is a native method, `then`
 // included, and that one never calls back. Off Android every method rejects, as Capacitor's do
 // for a plugin the platform does not have.
-const pluginProxy = () => new Proxy({}, {
+const pluginProxy = (name = 'RestAlert') => new Proxy({}, {
   get: (_, prop) => {
     if (prop === 'then') return () => new Promise(() => {})
     return (...args) => {
+      // The Live Activity plugin is iOS's (RestActivityPlugin.swift), so it answers there and is
+      // recorded apart from h.calls — the rest of this file is about a plugin iOS does *not* have.
+      if (name === 'RestActivity') {
+        h.activity.push([String(prop), ...args])
+        return Promise.resolve({ started: true, ended: true })
+      }
       h.calls.push(String(prop))
       if (h.platform !== 'android') return Promise.reject(new Error(`"RestAlert.${String(prop)}()" is not implemented on ${h.platform}`))
       return Promise.resolve(prop === 'addListener' ? { remove: async () => {} } : undefined)
@@ -35,6 +44,10 @@ vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: {
     checkPermissions: async () => ({ display: h.perm }),
     requestPermissions: (...args) => (h.request ? h.request(...args) : Promise.resolve({ display: 'granted' })),
+    // Kept apart from h.calls, which the plugin proxy fills: on iOS there is no plugin proxy at
+    // all, and the two must not be confused for each other.
+    schedule: async arg => { h.ln.push(['schedule', arg]) },
+    cancel: async arg => { h.ln.push(['cancel', arg]) },
   },
 }))
 
@@ -46,9 +59,11 @@ const onUnhandled = reason => unhandled.push(reason)
 beforeEach(() => {
   vi.resetModules()
   h.calls = []
-  h.registerPlugin = vi.fn(() => pluginProxy())
+  h.registerPlugin = vi.fn(name => pluginProxy(name))
   h.perm = 'granted'
   h.request = null
+  h.ln = []
+  h.activity = []
   localStorage.clear()
   unhandled.length = 0
   process.on('unhandledRejection', onUnhandled)
@@ -59,17 +74,143 @@ afterAll(() => {
 })
 
 describe('the rest alert in the iOS app', () => {
-  it('registers nothing, rejects nothing and leaves the end to the server push', async () => {
+  // #296 on iOS: no RestAlert plugin and no countdown card to keep in step, so a rest's end is one
+  // local notification. @capacitor/local-notifications already schedules those on iOS, which is
+  // why this half needs no native code of its own.
+  it('books the end as one local notification, and reaches for no plugin', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
-    await expect(alert.armRestAlert(Date.now() + 90_000, { totalSec: 90 })).resolves.toBe(false)
-    alert.holdRestAlert(60, 90)
-    alert.setRestAccent('red')
+    const at = Date.now() + 120_000
+    await expect(alert.armRestAlert(at, { totalSec: 120, title: 'Rest’s over. Next set!', countdownTitle: 'Rest', sound: true, accent: 0xFF30D158, ink: 0xFF000000 })).resolves.toBe(true)
+    // The Android plugin is never reached from iOS; the Live Activity plugin is (RestActivity),
+    // and the notification goes through @capacitor/local-notifications.
+    expect(h.calls).toEqual([])
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
+    expect(h.ln).toHaveLength(1)
+    const [what, arg] = h.ln[0]
+    expect(what).toBe('schedule')
+    expect(arg.notifications).toHaveLength(1)
+    expect(arg.notifications[0].title).toBe('Rest’s over. Next set!')
+    // The 2:00 has nowhere else to go: Android draws a clock and a shrinking bar, a notification
+    // gets one line of text.
+    expect(arg.notifications[0].body).toBe('Rest · 2:00')
+    expect(arg.notifications[0].schedule.at.getTime()).toBe(at)
+    // Named, on purpose, so UNNotificationSound falls back to the system sound — omitting it is
+    // silence on iOS (see rest-alert.js).
+    expect(typeof arg.notifications[0].sound).toBe('string')
+    expect(unhandled).toEqual([])
+  })
+
+  it('keeps the page quiet while it is armed, and hands the end back when the rest comes down', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    expect(alert.nativeEndTone()).toBe(false)
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
+    // Capacitor presents a foreground notification with its sound, so the page must not also chime.
+    expect(alert.nativeEndTone()).toBe(true)
     alert.disarmRestAlert()
+    await settle()
+    expect(alert.nativeEndTone()).toBe(false)
+    expect(h.ln.at(-1)[0]).toBe('cancel')
+  })
+
+  it('leaves the page its own chime when notifications are not allowed', async () => {
+    h.platform = 'ios'
+    h.perm = 'denied'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
+    // Nothing will sound from the system, so the page has to be the one that rings.
+    expect(alert.nativeEndTone()).toBe(false)
+  })
+
+  it('with Sounds off names no sound, and the notification is silent', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: false })
+    expect(h.ln[0][1].notifications[0]).not.toHaveProperty('sound')
+    expect(alert.nativeEndTone()).toBe(false)
+  })
+
+  it('a rest that is paused loses the notification for its old end', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
+    expect(alert.nativeEndTone()).toBe(true)
+    alert.holdRestAlert(45, 60)
+    await settle()
+    expect(alert.nativeEndTone()).toBe(false)
+    expect(h.ln.at(-1)[0]).toBe('cancel')
+  })
+
+  it('the calls iOS has no answer to are still quiet no-ops', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    alert.setRestAccent('red')
+    alert.buzzAsAlarm([200, 100, 200])
     await settle()
     expect(h.registerPlugin).not.toHaveBeenCalled()
     expect(h.calls).toEqual([])
     expect(unhandled).toEqual([])
+  })
+
+  // #296 on iOS: the countdown itself, on the lock screen and in the Dynamic Island. The widget
+  // (ios/App/AppWidgets/RestWidgetBundle.swift) draws what this hands over and computes nothing.
+  it('puts the countdown on the lock screen over the rest’s own span', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    const at = Date.now() + 120_000
+    await alert.armRestAlert(at, { totalSec: 120, title: 'Rest’s over. Next set!', countdownTitle: 'Rest', sound: true, accent: 0xFF30D158, ink: 0xFF000000 })
+    expect(h.activity).toHaveLength(1)
+    const [what, args] = h.activity[0]
+    expect(what).toBe('start')
+    // The translated strings travel with it: the widget has no i18n of its own to reach.
+    expect(args.countdownTitle).toBe('Rest')
+    // buildRestAlert carries the accent as ARGB for the Android notification; the widget parses hex.
+    expect(args.accentHex).toBe('#30d158')
+    // A range the system's own clock and progress view count down across, so the card keeps
+    // ticking while the app is suspended.
+    expect(args.state.endsAt).toBe(at)
+    expect(args.state.startAt).toBe(at - 120_000)
+    expect(args.state.totalMs).toBe(120_000)
+    expect(args.state.phase).toBe('rest')
+  })
+
+  it('takes the card down with the notification when the rest is skipped', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true, accent: 0xFF30D158, ink: 0xFF000000 })
+    expect(h.activity).toHaveLength(1)
+    alert.disarmRestAlert()
+    await settle()
+    expect(h.activity.at(-1)[0]).toBe('end')
+  })
+
+  // The card's own buttons (ios/App/App/RestIntents.swift) are drawn by the widget and performed by
+  // the app's process, so neither of them can ask the page what a button says or what the
+  // notification it has to re-book should read. Everything they need travels with the activity.
+  it('hands the card the words its buttons and its notification need', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 120_000, { totalSec: 120, title: 'Rest’s over. Next set!', countdownTitle: 'Rest', sound: true, accent: 0xFF30D158, ink: 0xFF000000 })
+    const args = h.activity[0][1]
+    // The four buttons, from the same translations Android's notification actions use.
+    expect(args.pauseLabel).toBe('Pause')
+    expect(args.resumeLabel).toBe('Resume')
+    expect(args.minusLabel).toBe('− 15s')
+    expect(args.plusLabel).toBe('+ 15s')
+    expect(args.skipLabel).toBe('Skip')
+    // And the notification itself, verbatim — one line of text, the same one
+    // @capacitor/local-notifications was handed above.
+    expect(args.notifyTitle).toBe('Rest’s over. Next set!')
+    expect(args.notifyBody).toBe('Rest · 2:00')
+    expect(args.notifyBody).toBe(h.ln[0][1].notifications[0].body)
+    expect(args.notifySound).toBe(true)
+    // Settings → Sound off: an iOS notification with no sound named is silent, and a button that
+    // re-books it must not put a sound back.
+    h.activity = []
+    h.ln = []
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: false, accent: 0xFF30D158, ink: 0xFF000000 })
+    expect(h.activity[0][1].notifySound).toBe(false)
   })
 })
 

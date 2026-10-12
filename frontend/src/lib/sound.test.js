@@ -41,6 +41,19 @@ class FakeCtx {
 }
 FakeCtx.instances = []
 
+// The haptics plugin the iPhone app carries (ios/App/App/HapticsPlugin.swift), as the proxy
+// registerPlugin() hands back. Only the last block in this file ever reaches it: everywhere else
+// MOBILE is off, so lib/sound.js never imports @capacitor/core at all.
+const haptics = vi.hoisted(() => ({ calls: [], fail: false }))
+vi.mock('@capacitor/core', () => ({
+  registerPlugin: () => ({
+    vibrate: async arg => {
+      if (haptics.fail) throw new Error('"Haptics.vibrate()" is not implemented')
+      haptics.calls.push(arg)
+    },
+  }),
+}))
+
 let sound
 let session
 const ctx = () => FakeCtx.instances[0]
@@ -435,6 +448,75 @@ describe('vibrate switch', () => {
     Object.defineProperty(navigator, 'vibrate', { value: undefined, configurable: true, writable: true })
     expect(sound.vibrateSupported()).toBe(false)
     expect(() => sound.vibrate(30)).not.toThrow()
+  })
+})
+
+// The iPhone *app*: iOS has no navigator.vibrate at all — that is the WebView's limitation, not the
+// phone's — so Settings → Vibrate used to read "Not on iPhone" and the switch could not be turned
+// on. The app carries its own haptics plugin (ios/App/App/HapticsPlugin.swift: CoreHaptics, with the
+// system vibrate behind it), and this is the page's half of it. Safari on an iPhone is unchanged:
+// still nothing to offer, which the block above pins.
+describe('vibrate in the iPhone app', () => {
+  const app = async () => { vi.resetModules(); return import('./sound.js') }
+  // The plugin is reached through a dynamic import, so this needs real ticks, not just microtasks —
+  // and this file runs on fake timers (see the top).
+  const settle = async () => { for (let i = 0; i < 10; i++) await vi.advanceTimersByTimeAsync(0) }
+
+  beforeEach(() => {
+    haptics.calls = []
+    haptics.fail = false
+    vi.stubEnv('VITE_MOBILE', '1')
+    // The WebView's own answer on iOS: there is none.
+    Object.defineProperty(navigator, 'vibrate', { value: undefined, configurable: true, writable: true })
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    delete navigator.vibrate
+  })
+
+  it('offers the switch on an iPhone in the app', async () => {
+    expect((await app()).vibrateSupported()).toBe(true)
+  })
+
+  it('sends the pattern to the native plugin, which walks it the way a browser does', async () => {
+    const s = await app()
+    s.vibrate([200, 100, 200])
+    await settle()
+    expect(haptics.calls).toEqual([{ pattern: [200, 100, 200] }])
+  })
+
+  it('a single duration is a one-segment pattern, and nonsense is dropped and rounded', async () => {
+    const s = await app()
+    s.vibrate(30)
+    s.vibrate([200.6, -5, Number.NaN, 0])
+    await settle()
+    expect(haptics.calls).toEqual([{ pattern: [30] }, { pattern: [201, 0] }])
+  })
+
+  it('still stays still when the switch is off', async () => {
+    const s = await app()
+    s.setVibrate(false)
+    s.vibrate([200, 100, 200])
+    await settle()
+    expect(haptics.calls).toEqual([])
+  })
+
+  it('prefers the browser’s own vibrate wherever there is one, plugin or no plugin', async () => {
+    const calls = []
+    Object.defineProperty(navigator, 'vibrate', { value: p => { calls.push(p); return true }, configurable: true, writable: true })
+    const s = await app()
+    s.vibrate(30)
+    await settle()
+    expect(calls).toEqual([30])
+    expect(haptics.calls).toEqual([])
+  })
+
+  it('is quiet when the shell has no such plugin: an older build simply does not buzz', async () => {
+    haptics.fail = true
+    const s = await app()
+    s.vibrate(30)
+    await settle()
+    expect(haptics.calls).toEqual([])
   })
 })
 
