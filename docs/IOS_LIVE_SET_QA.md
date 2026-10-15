@@ -6,6 +6,8 @@ commit onto `main`: both earlier iOS fixes are required.
 
 ## Status (2026-10-15)
 
+- User authorized CI/build verification; the draft PR is open to trigger the iOS and frontend test workflows.
+
 - Source updated. No GitHub Actions / IPA workflow has been run for this branch.
 - Source-level checks completed; Swift compilation and physical iPhone testing still required.
 - The existing Lock Screen rest controls (pause/resume, ±15 seconds and skip) remain separate.
