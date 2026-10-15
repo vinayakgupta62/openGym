@@ -104,11 +104,15 @@ struct RestLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // The app draws its own 24×24 stroke icons and uses no SF Symbols or emoji. A
-                // stroke drawing does not survive at this size, so this is the "solid where a
-                // shape reads better filled" case its own conventions allow: the timer glyph's
-                // circle and its button, filled.
-                TimerMark(color: Accent.color(context.attributes.accentHex), size: 15)
+                // The system anchors these two compact regions at opposite ends of the
+                // Island. Use a *word* on the left and one clock on the right, never
+                // two stopwatches (especially when a rest changes to Ready).
+                Text(face(context) == RestActivityAttributes.Phase.workout ? "SET"
+                     : face(context) == RestActivityAttributes.Phase.ready ? "DONE" : "REST")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(Accent.color(context.attributes.accentHex))
+                    .lineLimit(1)
             } compactTrailing: {
                 CompactClock(context: context)
             } minimal: {
@@ -137,9 +141,10 @@ private struct LockScreenCard: View {
             if context.state.hasWorkout {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(context.state.exerciseName)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.80)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.85)
                     Spacer(minLength: 0)
                     if phase == RestActivityAttributes.Phase.workout {
                         Text(context.state.workoutStartedAt, style: .timer)
@@ -191,7 +196,10 @@ private struct LockScreenCard: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        // A little more headroom for compact stacking beside the Now Playing
+        // card: iOS decides the actual card position, not the extension.
+        .padding(.top, 12)
+        .padding(.bottom, 9)
     }
 }
 
@@ -422,7 +430,7 @@ private struct CompactClock: View {
             if face(context) == RestActivityAttributes.Phase.workout {
                 Text(context.state.workoutStartedAt, style: .timer)
             } else if face(context) == RestActivityAttributes.Phase.ready {
-                TimerMark(color: Accent.color(context.attributes.accentHex), size: 14)
+                Text("Ready")
             } else if context.state.isPaused {
                 Text(Clock.clock(context.state.leftMs))
             } else if context.state.endsAt > context.state.startAt {

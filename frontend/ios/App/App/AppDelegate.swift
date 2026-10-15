@@ -5,7 +5,10 @@ import Capacitor
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // A phone bouncing in a pocket or during sets triggers UIKit's "Undo Typing"
+        // shake alert even after the keyboard is dismissed. Gym tracking isn't a text
+        // editor: disable the global shake-to-undo gesture in the native app only.
+        application.applicationSupportsShakeToEdit = false
         return true
     }
 

@@ -103,6 +103,21 @@ describe('the Xcode project holds together', () => {
 // never starts, a renamed plugin is a card that never appears — so the project is read the way Xcode
 // would read it, and the two languages are checked against each other where they have to agree.
 describe('the Live Activity and its buttons', () => {
+  it('prevents UIKit shake-to-undo while entering sets on a moving iPhone', () => {
+    expect(read('ios/App/App/AppDelegate.swift')).toContain('application.applicationSupportsShakeToEdit = false')
+  })
+
+  it('keeps a single readable timer in the compact Island when rest becomes Ready', () => {
+    const widget = read('ios/App/AppWidgets/RestWidgetBundle.swift')
+    const compact = widget.split('private struct CompactClock: View {')[1]
+      .split('private struct MinimalClock: View {')[0]
+    expect(compact).toContain('Text("Ready")')
+    expect(compact).not.toContain('TimerMark(')
+    const leading = widget.split('} compactLeading: {')[1].split('} compactTrailing: {')[0]
+    expect(leading).toContain('"REST"')
+    expect(leading).toContain('"DONE"')
+    expect(leading).not.toContain('TimerMark(')
+  })
   const attributes = read('ios/App/App/RestActivityAttributes.swift')
   const intents = read('ios/App/App/RestIntents.swift')
   const widget = read('ios/App/AppWidgets/RestWidgetBundle.swift')
