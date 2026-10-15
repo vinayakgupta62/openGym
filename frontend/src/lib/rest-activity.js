@@ -66,6 +66,7 @@ export async function startRestActivity(alert) {
       // started with on a line nobody reads while the card is counting down anyway.
       notifyBody: alert.body,
       notifySound: !!alert.sound,
+      notifyTone: alert.tone || 'chime',
       accentHex: hex(alert.accent),
       inkHex: hex(alert.ink),
       state: {

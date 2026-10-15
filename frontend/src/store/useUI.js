@@ -190,7 +190,7 @@ const runRest = (set, get) => {
         // The Android alarm for this end stays quiet while the app is on screen, so this chime is
         // the only one. Locked, this branch never runs and the alarm's tone does.
         endTone(snd, endSound)
-        alertBuzz([200, 100, 200]); get().flashTimer()
+        alertBuzz([180, 90, 240, 95, 310]); get().flashTimer()
       }
       // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
       // without push permission, gets no notification, and a countdown that silently vanishes
@@ -216,11 +216,9 @@ const runRest = (set, get) => {
 function endTone(enabled, kind) {
   if (!enabled) return
   if (!MOBILE) { chime(enabled, kind); return }
-  // iOS is the exception, and the only one: its rest alert *is* a notification, and Capacitor
-  // presents one delivered to a foreground app with its sound, so the page has to stay quiet there
-  // or the end of a rest rings twice. `nativeEndTone` is true only while that notification is
-  // armed and will really make a noise — a rest whose notifications were refused still gets this
-  // chime, and a timed hold never arms one at all (startWork() → stopRest() → disarmRestAlert()).
+  // The foreground notification delegate suppresses its ordinary system
+  // sound while playing a single WAV under .duckOthers. Avoid two chimes.
+  // Without notification permission, toneNative still plays the same WAV.
   if (nativeEndTone()) return
   toneNative(kind === true ? 'classic' : kind).then(ok => { if (!ok) chime(enabled, kind) })
 }

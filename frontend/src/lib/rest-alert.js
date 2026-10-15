@@ -133,7 +133,16 @@ const restPlugin = () => pluginP || (pluginP = (async () => {
 //
 // One local notification at the end of the rest, and nothing else: no countdown card to keep in
 // step, no labels to push into it, no plugin of our own.
-const IOS_SOUND = 'opengym-rest'
+// Files are bundled in the native iOS target, including all Settings tones.
+const IOS_SOUND = 'opengym-rest-chime.wav'
+const IOS_SOUNDS = Object.fromEntries(Object.keys(REST_SOUNDS).map(id => [id, `opengym-rest-${id}.wav`]))
+let iosAudioP = null
+const iosAudio = () => iosAudioP || (iosAudioP = (async () => {
+  if (!MOBILE || (await platform()) !== 'ios') return null
+  const { registerPlugin } = await import('@capacitor/core')
+  return { RestAudio: registerPlugin('RestAudio') }
+})().catch(() => null))
+const prepareIosAudio = () => iosAudio().then(p => p && p.RestAudio.prepare()).catch(() => {})
 
 // Whether an iOS notification is armed that will make a noise. `useUI.endTone` asks before it
 // chimes: Capacitor presents a notification delivered to a foreground app *with* its sound
@@ -148,13 +157,9 @@ const iosNotification = alert => ({
   id: REST_ALERT_ID,
   title: alert.title,
   body: alert.body,
-  // A sound name nothing answers to, and that is the point: the plugin sets content.sound only
-  // when a name is given (LocalNotificationsPlugin.swift), and UNNotificationSound(named:) falls
-  // back to the system sound when it cannot find the file — so naming nothing would mean silence,
-  // and naming anything unbundled is how this gets a sound without shipping an audio file. It is
-  // also where Settings → Sound's chosen tone will go, once those are rendered to files the app
-  // can bundle. With Sounds off, no name and no sound.
-  ...(alert.sound ? { sound: IOS_SOUND } : {}),
+  // Bundled custom PCM WAV; the chosen tone plays when locked.
+  ...(alert.sound ? { sound: IOS_SOUNDS[alert.tone] || IOS_SOUND } : {}),
+  extra: { openGymRestTone: alert.tone },
   schedule: { at: new Date(alert.at) },
 })
 
@@ -179,6 +184,7 @@ async function deliverIos(alert) {
       const { LocalNotifications } = await import('@capacitor/local-notifications')
       await LocalNotifications.schedule({ notifications: [iosNotification(notice)] })
       scheduled = true
+      await prepareIosAudio() // wrap Capacitor delegate only after it is installed
     } catch { /* ActivityKit is independent of notification scheduling errors. */ }
   }
   // Only a granted, scheduled sound may silence the in-page chime.
@@ -274,13 +280,19 @@ export function buzzAsAlarm(pattern) {
     .catch(() => false)
 }
 
-// The end tone through the native side, which ducks music for it (a page cannot). Resolves true
-// once it was handed over, false anywhere it cannot (the web, iOS, a failed call) for the caller
-// to play the page's own chime instead. Never resolves with the plugin itself — see restPlugin.
-export function toneNative(kind) {
-  if (!MOBILE) return Promise.resolve(false)
+// Foreground iOS playback uses AVAudioSession.duckOthers rather than
+// interrupting Spotify. The same native sound works without notifications.
+export async function toneNative(kind) {
+  if (!MOBILE) return false
+  const selected = Object.hasOwn(REST_SOUNDS, kind) ? kind : 'chime'
+  if ((await platform()) === 'ios') {
+    try {
+      const p = await iosAudio()
+      return p ? (await p.RestAudio.play({ tone: selected }))?.played === true : false
+    } catch { return false }
+  }
   return restPlugin()
-    .then(plugin => (plugin ? plugin.RestAlert.tone({ kind: String(kind || 'chime') }).then(() => true) : false))
+    .then(p => p ? p.RestAlert.tone({ kind: selected }).then(() => true) : false)
     .catch(() => false)
 }
 

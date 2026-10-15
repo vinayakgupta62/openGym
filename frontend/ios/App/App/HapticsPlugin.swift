@@ -79,7 +79,8 @@ public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
                     eventType: .hapticContinuous,
                     parameters: [
                         CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0),
-                        CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5)
+                        CHHapticEventParameter(parameterID: .hapticSharpness,
+                                               value: pattern.count >= 5 ? 0.8 : 0.5)
                     ],
                     relativeTime: at,
                     duration: seconds))

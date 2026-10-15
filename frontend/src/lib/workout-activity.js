@@ -88,7 +88,13 @@ export function workoutSnapshot(S) {
 export function restNotificationBody(S) {
   const next = workoutSnapshot(S)
   if (!next || next.setIndex < 0 || !next.exerciseName) return null
-  return [next.exerciseName, next.targetText].filter(Boolean).join(' · ')
+  // Very long custom names are shortened to keep weight × reps visible.
+  const shorten = (value, limit) => {
+    const points = Array.from(String(value || ''))
+    return points.length > limit ? points.slice(0, limit - 1).join('') + '…' : points.join('')
+  }
+  return [shorten(next.exerciseName, 48), shorten(next.targetText, 40)]
+    .filter(Boolean).join(' · ')
 }
 
 /** Subscribe only to persisted workout state: the UI rest timer ticks every second,
