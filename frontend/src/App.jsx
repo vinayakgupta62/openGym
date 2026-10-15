@@ -17,6 +17,7 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
+import { watchWorkoutActivity } from './lib/workout-activity.js'
 import { exitWorkoutEdit, startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -249,6 +250,8 @@ function Shell() {
 export default function App() {
   const boot = useStore(s => s.boot)
   useEffect(() => { boot() }, [boot])
+  // Keep the iOS Lock Screen and Dynamic Island showing the active exercise between rests.
+  useEffect(() => watchWorkoutActivity(useStore), [])
   // Android system back — sheet, then page, then press-again-to-exit (see lib/back.js)
   useEffect(() => {
     let stop = null, gone = false

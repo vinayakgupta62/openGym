@@ -110,13 +110,37 @@ export async function restActivityStatus() {
   }
 }
 
-/** Take the card down: the rest was skipped, dismissed or replaced. */
+/** End the rest without destroying an active workout Live Activity. */
 export async function endRestActivity() {
   if (!MOBILE) return
   try {
     const p = await plugin()
-    if (p) await p.RestActivity.end()
+    if (p) await p.RestActivity.clearRest()
   } catch { /* nothing on screen to take down */ }
+}
+
+/** Update the single Live Activity for the full workout, rather than creating one per rest. */
+export async function syncWorkoutActivity(snapshot) {
+  try {
+    const p = await plugin()
+    if (!p) return false
+    if (!snapshot) {
+      await p.RestActivity.end()
+      return true
+    }
+    const result = await p.RestActivity.syncWorkout({
+      ...snapshot,
+      countdownTitle: t('Rest'),
+      readyLabel: t('Ready'),
+      pauseLabel: t('Pause'),
+      resumeLabel: t('Resume'),
+      minusLabel: '− 15s',
+      plusLabel: '+ 15s',
+      skipLabel: t('Skip'),
+      notifyTitle: t('Rest’s over. Next set!'),
+    })
+    return !!result?.synced
+  } catch { return false }
 }
 
 // One listener and one `bind` for the life of the page. `cb` is useUI's own handler for a

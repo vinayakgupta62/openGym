@@ -193,7 +193,7 @@ describe('the rest alert in the iOS app', () => {
     expect(h.activity).toHaveLength(1)
     alert.disarmRestAlert()
     await settle()
-    expect(h.activity.at(-1)[0]).toBe('end')
+    expect(h.activity.at(-1)[0]).toBe('clearRest')
   })
 
   // The card's own buttons (ios/App/App/RestIntents.swift) are drawn by the widget and performed by
