@@ -50,8 +50,11 @@ engine or an authoritative native-to-web transaction layer.
 7. Test network-offline mode and relaunch. Local saved workout should remain correct.
 8. Verify the direct action does *not* appear for cardio or timed sets; their log/timer
    semantics cannot be safely inferred from the widget.
-9. Confirm rest Pause, Resume, -15s, +15s and Skip still work from both surfaces.
-10. Check that iOS's Live Activities and notification permissions can be independently
+9. Let a rest expire while locked and verify Complete Set is offered from the Ready
+   card; its press must clear the stale rest before the next rest gets booked.
+   Pause a rest before it expires and ensure Complete Set does not become active.
+10. Confirm rest Pause, Resume, -15s, +15s and Skip still work from both surfaces.
+11. Check that iOS's Live Activities and notification permissions can be independently
     enabled/disabled without breaking the workout screen.
 
 ## Known follow-ups

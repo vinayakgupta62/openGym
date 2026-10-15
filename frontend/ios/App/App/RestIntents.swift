@@ -176,9 +176,12 @@ enum RestBridge {
     static func completeNextSet() async {
         guard let activity = current() else { return }
         var state = activity.content.state
-        // No accidental double-tick. The widget does not guess what row follows
-        // while the WebView is suspended; no set can be ticked during a rest.
-        guard state.phase == RestActivityAttributes.Phase.workout,
+        // An elapsed rest is Ready even when JavaScript is suspended. This is
+        // the moment to start the next set; an actively running or paused rest
+        // must never accidentally tick it.
+        let ready = state.phase == RestActivityAttributes.Phase.ready
+            || (state.phase == RestActivityAttributes.Phase.rest && state.endsAt <= Date())
+        guard (state.phase == RestActivityAttributes.Phase.workout || ready),
               state.hasWorkout, state.canCompleteSet, !state.setPending,
               !state.setToken.isEmpty, state.setIndex >= 0,
               state.setEntryIndex >= 0, !state.setExerciseId.isEmpty else { return }
@@ -200,6 +203,11 @@ enum RestBridge {
         // Durable write FIRST; a terminated process after this point can re-deliver.
         queue.append(command)
         UserDefaults.standard.set(queue, forKey: setQueueKey)
+        if ready {
+            cancelNotification()
+            state.phase = RestActivityAttributes.Phase.workout
+            state.leftMs = 0
+        }
         state.setPending = true
         state.pendingSetId = id
         await update(activity, state)

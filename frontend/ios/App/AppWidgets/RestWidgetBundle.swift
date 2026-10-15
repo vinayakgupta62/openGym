@@ -88,7 +88,8 @@ struct RestLiveActivity: Widget {
                                 .foregroundStyle(Color.white.opacity(0.86))
                                 .lineLimit(1)
                         }
-                        if face(context) == RestActivityAttributes.Phase.workout
+                        if (face(context) == RestActivityAttributes.Phase.workout
+                            || face(context) == RestActivityAttributes.Phase.ready)
                             && context.state.canCompleteSet {
                             if #available(iOS 17.0, *) {
                                 CompleteSetButton(context: context, onDark: true)
@@ -163,6 +164,13 @@ private struct LockScreenCard: View {
                 }
                 if #available(iOS 17.0, *) {
                     Buttons(context: context, onDark: false)
+                }
+                if face(context) == RestActivityAttributes.Phase.ready
+                    && context.state.canCompleteSet {
+                    SetProgress(context: context)
+                    if #available(iOS 17.0, *) {
+                        CompleteSetButton(context: context, onDark: false)
+                    }
                 }
             }
         }

@@ -1756,7 +1756,9 @@ function ActiveWorkout() {
     if (!wasApplied) {
       if (!validNativeSetTarget(store.S, command)
         || useUI.getState().work
-        || (useUI.getState().timer && !useUI.getState().timer.ready)) {
+        || (useUI.getState().timer && !useUI.getState().timer.ready
+          && (useUI.getState().timer.paused
+            || useUI.getState().timer.endsAt > Date.now()))) {
         // Stale/edited/finished target: explicitly reject it after flushing whatever
         // the latest workout is, rather than ticking an unrelated set.
         try { await store.flushNativeSet() } catch { return undefined }
@@ -1765,6 +1767,12 @@ function ActiveWorkout() {
       }
       const idx = command.entryIndex, i = command.setIndex
       const side = command.side || undefined
+      // The rest may have expired while iOS suspended JavaScript. Its native
+      // Live Activity already says Ready; take down the stale JS rest before
+      // the real set toggle books the next one.
+      const previousRest = useUI.getState().timer
+      if (previousRest && !previousRest.ready && !previousRest.paused
+        && previousRest.endsAt <= Date.now()) useUI.getState().stopRest()
       toggle(idx, i, side)
       const row = useStore.getState().S.active?.entries?.[idx]?.sets?.[i]
       const completed = side ? row?.sides?.[side]?.done === true : row?.done === true
