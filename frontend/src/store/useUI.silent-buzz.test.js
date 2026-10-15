@@ -81,8 +81,8 @@ describe('vibrate on silent', () => {
     withSettings({ vibrate: true, vibrateOnSilent: true })
     useUI.getState().startRest(2)
     await vi.advanceTimersByTimeAsync(3000)
-    expect(alertBuzz).toHaveBeenCalledWith([200, 100, 200])
-    expect(vibrate).not.toHaveBeenCalledWith([200, 100, 200])
+    expect(alertBuzz).toHaveBeenCalledWith([180, 90, 240, 95, 310])
+    expect(vibrate).not.toHaveBeenCalledWith([180, 90, 240, 95, 310])
   })
 
   it('a hold that ends early only ticks, the ordinary way', () => {

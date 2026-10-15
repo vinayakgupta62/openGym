@@ -135,7 +135,10 @@ public class RestAudioPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc public func play(_ call: CAPPluginCall) {
-        let started = RestAudioPlayer.shared.play(tone: call.getString("tone") ?? "chime")
-        call.resolve(["played": started])
+        let tone = call.getString("tone") ?? "chime"
+        Task { @MainActor in
+            let started = RestAudioPlayer.shared.play(tone: tone)
+            call.resolve(["played": started])
+        }
     }
 }
