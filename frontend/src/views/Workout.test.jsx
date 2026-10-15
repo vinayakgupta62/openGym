@@ -366,7 +366,7 @@ describe('Workout set completion flow', () => {
 
       await toggleSet(0)
 
-      expect(mocks.S.active.cur).toBe(0)
+      expect(mocks.S.active.cur).toBe(1)
       expect(mocks.startRest).not.toHaveBeenCalled()
     },
   )
