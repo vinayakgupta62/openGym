@@ -20,6 +20,16 @@ const mentioned = new Set([...pbxproj.matchAll(ID)].map(m => m[0]))
 const count = (s, c) => s.split(c).length - 1
 
 describe('the Xcode project holds together', () => {
+  it('registers local Swift plugins when Capacitor starts the iOS WebView', () => {
+    const bridge = read('ios/App/App/OpenGymBridgeViewController.swift')
+    const storyboard = read('ios/App/App/Base.lproj/Main.storyboard')
+    expect(storyboard).toContain('customClass="OpenGymBridgeViewController" customModule="App"')
+    expect(pbxproj).toContain('OpenGymBridgeViewController.swift in Sources')
+    for (const nativePlugin of ['SystemBarsPlugin', 'HealthPlugin', 'HapticsPlugin', 'RestActivityPlugin']) {
+      expect(bridge).toContain(`bridge?.registerPluginInstance(${nativePlugin}())`)
+    }
+  })
+
   it('every id it mentions is one it defines', () => {
     expect([...mentioned].filter(id => !defined.has(id))).toEqual([])
   })
