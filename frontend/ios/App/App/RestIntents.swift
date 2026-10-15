@@ -49,10 +49,12 @@ enum RestBridge {
     /// request under (`"\(notification["id"])"` — LocalNotificationsPlugin.swift). Pinned by a test
     /// on the JS side, which reads this file.
     static let notificationID = "42"
-    /// lib/rest-alert.js IOS_SOUND: a name nothing answers to, on purpose, so
-    /// `UNNotificationSound(named:)` falls back to the system sound without shipping an audio file.
-    /// Re-scheduling the notification from here has to name the same thing.
-    static let soundName = "opengym-rest"
+    /// lib/rest-alert.js IOS_SOUND: each name has a short PCM WAV in the app bundle.
+    static let soundName = "opengym-rest-chime.wav"
+    static let allowedTones: Set<String> = ["chime", "classic", "bell", "beep", "whistle", "soft"]
+    static func soundFile(_ tone: String) -> String {
+        "opengym-rest-\(allowedTones.contains(tone) ? tone : "chime").wav"
+    }
     /// Where a button press waits for a WebView that is not there to hear it.
     static let queueKey = "opengym_rest_commands"
     static let setQueueKey = "opengym_set_commands"
@@ -100,8 +102,9 @@ enum RestBridge {
         let content = UNMutableNotificationContent()
         content.title = state.notifyTitle.isEmpty ? attributes.notifyTitle : state.notifyTitle
         content.body = state.notifyBody.isEmpty ? attributes.notifyBody : state.notifyBody
+        content.userInfo = ["openGymRestTone": state.notifyTone]
         if state.notifySound {
-            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundName))
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundFile(state.notifyTone)))
         }
         center.add(UNNotificationRequest(
             identifier: notificationID,

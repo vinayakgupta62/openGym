@@ -76,6 +76,7 @@ public struct RestActivityAttributes: ActivityAttributes {
         public var notifyTitle: String
         public var notifyBody: String
         public var notifySound: Bool
+        public var notifyTone: String
         public var restTitle: String
 
         public init(startAt: Date, endsAt: Date, totalMs: Double, phase: String, leftMs: Double,
@@ -87,7 +88,8 @@ public struct RestActivityAttributes: ActivityAttributes {
                     canCompleteSet: Bool = false, setPending: Bool = false,
                     pendingSetId: String = "",
                     notifyTitle: String = "", notifyBody: String = "",
-                    notifySound: Bool = true, restTitle: String = "") {
+                    notifySound: Bool = true, notifyTone: String = "chime",
+                    restTitle: String = "") {
             self.startAt = startAt
             self.endsAt = endsAt
             self.totalMs = totalMs
@@ -112,6 +114,7 @@ public struct RestActivityAttributes: ActivityAttributes {
             self.notifyTitle = notifyTitle
             self.notifyBody = notifyBody
             self.notifySound = notifySound
+            self.notifyTone = notifyTone
             self.restTitle = restTitle
         }
 

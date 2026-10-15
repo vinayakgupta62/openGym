@@ -5,6 +5,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
 
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        RestNotificationRouter.shared.install()
+    }
+
     // The window and root view controller are created automatically from
     // Main.storyboard via the UISceneStoryboardFile key in Info.plist.
     // These callbacks just forward deep links / Universal Links to Capacitor,

@@ -74,6 +74,7 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         let notifyTitle: String
         let notifyBody: String
         let notifySound: Bool
+        let notifyTone: String
         let accentHex: String
         let inkHex: String
         let state: StateIn
@@ -176,7 +177,8 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             phase: input.state.phase,
             leftMs: input.state.leftMs,
             notifyTitle: input.notifyTitle, notifyBody: input.notifyBody,
-            notifySound: input.notifySound, restTitle: input.countdownTitle)
+            notifySound: input.notifySound, notifyTone: input.notifyTone,
+            restTitle: input.countdownTitle)
         // A running rest goes stale when it ends, which is how the card says "Ready" with the app
         // suspended; a held one has no end to go stale at (RestIntents.swift, RestBridge.staleDate).
         let stale = state.phase == RestActivityAttributes.Phase.rest ? state.endsAt : nil
@@ -194,6 +196,7 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 next.notifyTitle = state.notifyTitle
                 next.notifyBody = state.notifyBody
                 next.notifySound = state.notifySound
+                next.notifyTone = state.notifyTone
                 next.restTitle = state.restTitle
                 await self.updateState(current, next)
                 call.resolve(["started": true])
