@@ -46,7 +46,7 @@ const sheetHost = () => {
 // v1.3.11: one docked row; the clock is a button that opens the wheel at the time left.
 describe('the docked rest bar', () => {
   it('places its safe-area inset UNDER the rounded dock, not inside a tall empty panel', () => {
-    const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
+    const css = readFileSync('src/index.css', 'utf8')
     const dock = css.split('body.no-tabbar #timer{')[1].split('}')[0]
     expect(dock).toContain('bottom:calc(8px + var(--sab))')
     expect(dock).toContain('padding:10px 12px')
