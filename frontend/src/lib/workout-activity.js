@@ -10,7 +10,6 @@ import { accentColors } from './rest-alert.js'
 import { doneUnits, isBw, modeOf, setLabel, setUnits } from './history.js'
 import { speedUnitOf } from './speed.js'
 import { nextOpenSet } from './workout-keys.js'
-import { isSideSet } from './workout-model.js'
 import { ackSetCompletion, syncWorkoutActivity } from './rest-activity.js'
 
 const color = value => '#' + ((Number(value) >>> 0) & 0xffffff).toString(16).padStart(6, '0')
@@ -97,6 +96,9 @@ export function watchWorkoutActivity(store) {
     // command that the user just pressed on the Lock Screen.
     if (current.ready === false) return
     const snapshot = workoutSnapshot(current.S)
+    // Clear old queued set taps after a workout was discarded or another one
+    // started, without ever applying them to a different session.
+    void acknowledgeOrphanedSets(store)
     const key = JSON.stringify(snapshot)
     if (!force && key === last) return
     last = key
@@ -104,6 +106,7 @@ export function watchWorkoutActivity(store) {
     // must not race a slow ActivityKit request from the preceding workout.
     chain = chain.then(() => stopped ? null : syncWorkoutActivity(snapshot)).catch(() => {})
   }
+  trackedStore = store
   sync()
   const unStore = store.subscribe((next, prev) => {
     // finishBoot may flip ready without replacing S, so a restored workout
@@ -114,6 +117,7 @@ export function watchWorkoutActivity(store) {
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
   return () => {
     stopped = true
+    if (trackedStore === store) trackedStore = null
     unStore()
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
   }
@@ -125,8 +129,26 @@ export function watchWorkoutActivity(store) {
 // toggle handler is allowed to commit a set, after the screen mounts again.
 const nativeCommands = new Map()
 const pendingSubscribers = new Set()
+const processedNativeIds = new Set()
+let trackedStore = null
 let completeHandler = null
 let draining = false
+
+async function acknowledgeOrphanedSets(store) {
+  const state = store?.getState?.()
+  if (!state?.ready || !nativeCommands.size || draining || completeHandler) return
+  const current = workoutSnapshot(state.S)
+  for (const [id, cmd] of nativeCommands) {
+    if (current?.workoutId === cmd.workoutId) continue
+    try {
+      await store.getState().flushNativeSet()
+      if (await ackSetCompletion(id)) {
+        nativeCommands.delete(id)
+        processedNativeIds.delete(id)
+      }
+    } catch { /* Keep UserDefaults action until a successful retry. */ }
+  }
+}
 
 export function validNativeSetTarget(S, command) {
   const snapshot = workoutSnapshot(S)
@@ -148,6 +170,7 @@ export function receiveNativeSetCommand(command) {
     try { listener() } catch { /* navigation can wait for the next visible pass */ }
   }
   void flushNativeSets()
+  void acknowledgeOrphanedSets(trackedStore)
 }
 
 export const hasNativeSetPending = () => nativeCommands.size > 0
@@ -174,15 +197,18 @@ async function flushNativeSets() {
   try {
     for (const [id, command] of nativeCommands) {
       if (!completeHandler) break
-      let committed
-      try { committed = await completeHandler(command) }
-      catch { break }
-      // undefined means the app has not finished restoring; no ACK, retry later.
-      if (committed !== true && committed !== false) break
-      // For success AND stale-target rejection, ACK only after the store handler
-      // returns. An ACK failure keeps the native action for safe retry.
+      if (!processedNativeIds.has(id)) {
+        let committed
+        try { committed = await completeHandler(command) }
+        catch { break }
+        // undefined means the app has not finished restoring; no ACK, retry later.
+        if (committed !== true && committed !== false) break
+        // A later native ACK failure must never cause a second JS set toggle.
+        processedNativeIds.add(id)
+      }
       if (!(await ackSetCompletion(id))) break
       nativeCommands.delete(id)
+      processedNativeIds.delete(id)
     }
   } finally { draining = false }
 }
