@@ -40,21 +40,60 @@ struct RestLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Clock(context: context, size: 28, onDark: true)
-                        .padding(.leading, 4)
+                    if context.state.hasWorkout {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(context.state.exerciseName)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.white)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.75)
+                            Text(context.state.nextSetLabel)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.65))
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Clock(context: context, size: 28, onDark: true)
+                    }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Status(context: context, alignment: .trailing, onDark: true)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        if context.state.hasWorkout && face(context) == RestActivityAttributes.Phase.workout {
+                            Text(context.state.workoutStartedAt, style: .timer)
+                                .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Color.white)
+                                .lineLimit(1)
+                        } else {
+                            Clock(context: context, size: 25, onDark: true)
+                        }
+                        if face(context) != RestActivityAttributes.Phase.workout {
+                            Status(context: context, alignment: .trailing, onDark: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Bar(context: context, inset: 10)
+                    if face(context) == RestActivityAttributes.Phase.workout {
+                        SetProgress(context: context)
+                    } else {
+                        Bar(context: context, inset: 3)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    // Availability-checked here as well as in the card: this closure is compiled for
-                    // 16.1 like everything else in the extension, and `Buttons` is an iOS 17 type.
-                    if #available(iOS 17.0, *) {
-                        Buttons(context: context, onDark: true)
-                            .padding(.top, 2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if context.state.hasWorkout && !context.state.targetText.isEmpty {
+                            Text(context.state.targetText)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.86))
+                                .lineLimit(1)
+                        }
+                        if face(context) != RestActivityAttributes.Phase.workout {
+                            if #available(iOS 17.0, *) {
+                                Buttons(context: context, onDark: true)
+                                    .padding(.top, 2)
+                            }
+                        }
                     }
                 }
             } compactLeading: {
@@ -79,18 +118,62 @@ private struct LockScreenCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Bar(context: context, inset: 0)
-            HStack(alignment: .firstTextBaseline) {
-                Clock(context: context, size: 40, onDark: false)
-                Spacer(minLength: 8)
-                Status(context: context, alignment: .trailing, onDark: false)
+            if context.state.hasWorkout {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(context.state.workoutName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(context.state.workoutStartedAt, style: .timer)
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(context.state.exerciseName)
+                        .font(.system(size: 17, weight: .semibold))
+                        .lineLimit(2)
+                    Text(context.state.nextSetLabel
+                         + (context.state.targetText.isEmpty ? "" : "  ·  " + context.state.targetText))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
-            if #available(iOS 17.0, *) {
-                Buttons(context: context, onDark: false)
+
+            if face(context) == RestActivityAttributes.Phase.workout {
+                SetProgress(context: context)
+            } else {
+                Bar(context: context, inset: 0)
+                HStack(alignment: .firstTextBaseline) {
+                    Clock(context: context, size: 40, onDark: false)
+                    Spacer(minLength: 8)
+                    Status(context: context, alignment: .trailing, onDark: false)
+                }
+                if #available(iOS 17.0, *) {
+                    Buttons(context: context, onDark: false)
+                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+}
+
+// The bar shows completed sets in the current workout, including the next-set phase.
+private struct SetProgress: View {
+    let context: ActivityViewContext<RestActivityAttributes>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: Double(context.state.completedSets),
+                         total: Double(max(1, context.state.totalSets)))
+                .tint(Accent.color(context.attributes.accentHex))
+            Text("\(context.state.completedSets)/\(context.state.totalSets)")
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .fixedSize()
+        }
     }
 }
 
@@ -181,7 +264,9 @@ private struct Clock: View {
 
     var body: some View {
         Group {
-            if face(context) == RestActivityAttributes.Phase.ready {
+            if face(context) == RestActivityAttributes.Phase.workout {
+                Text(context.state.workoutStartedAt, style: .timer)
+            } else if face(context) == RestActivityAttributes.Phase.ready {
                 Text(context.attributes.readyLabel)
             } else if context.state.isPaused {
                 Text(Self.clock(context.state.leftMs))
@@ -222,7 +307,7 @@ private struct Status: View {
     private var text: String {
         // The rest's own name — "Rest", "Switch sides" — and nothing once it is over: Ready says
         // itself on the clock, and the two together read like a label for each other.
-        face(context) == RestActivityAttributes.Phase.ready ? "" : context.attributes.countdownTitle
+        face(context) == RestActivityAttributes.Phase.ready ? "" : (context.state.restTitle.isEmpty ? context.attributes.countdownTitle : context.state.restTitle)
     }
 }
 
@@ -257,7 +342,9 @@ private struct CompactClock: View {
 
     var body: some View {
         Group {
-            if face(context) == RestActivityAttributes.Phase.ready {
+            if face(context) == RestActivityAttributes.Phase.workout {
+                Text(context.state.workoutStartedAt, style: .timer)
+            } else if face(context) == RestActivityAttributes.Phase.ready {
                 TimerMark(color: Accent.color(context.attributes.accentHex), size: 14)
             } else if context.state.isPaused {
                 Text(Clock.clock(context.state.leftMs))
@@ -280,7 +367,9 @@ private struct MinimalClock: View {
 
     var body: some View {
         Group {
-            if face(context) == RestActivityAttributes.Phase.ready {
+            if face(context) == RestActivityAttributes.Phase.workout {
+                Text(context.state.workoutStartedAt, style: .timer)
+            } else if face(context) == RestActivityAttributes.Phase.ready {
                 TimerMark(color: Accent.color(context.attributes.accentHex), size: 13)
             } else if context.state.isPaused {
                 Text(Clock.clock(context.state.leftMs))
