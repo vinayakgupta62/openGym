@@ -362,3 +362,4 @@ struct RestCompleteSetIntent: LiveActivityIntent {
         await RestBridge.completeNextSet()
         return .result()
     }
+}
