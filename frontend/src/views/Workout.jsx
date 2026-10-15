@@ -43,6 +43,7 @@ import { bestSetFor } from '../lib/exercise-history.js'
 import { isWarmupRow, isFailureSet, toggleFailure, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps, isSideSet, makeSideSet, setSideField, toggleSide, addSideDrop, removeSideDropAt, setSideDropAt, addSideCluster, removeSideClusterAt, setSideClusterAt, WEIGHT_ORIGIN_MANUAL } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit, canMoveActiveWorkoutEntry, moveActiveWorkoutEntry } from '../lib/active-workout-order.js'
 import { nextOpenSet, workoutKeyAction } from '../lib/workout-keys.js'
+import { registerNativeSetHandler, validNativeSetTarget } from '../lib/workout-activity.js'
 import { MUSCLE_NAME } from '../lib/muscles.js'
 import FocusView from './FocusView.jsx'
 import { withMeaning, historyAs, dbLoadFor, entryDbLoad, bellsIn, ownedWeightsFor, stepOwned } from '../lib/dumbbells.js'
@@ -1741,7 +1742,46 @@ function ActiveWorkout() {
     }
   }
 
-  // After the finished exercise folded away (toggle, above): the new current one is the next thing
+  // Complete Set in the Lock Screen and Dynamic Island goes through this same toggle.
+  // The native intent's durable command includes the workout, exercise, row, side and a
+  // fingerprint. A changed/reordered set is rejected rather than toggling a different row.
+  // No native ACK is issued until openGym's normal persistence AND the native mirror write.
+  const nativeCompletionRef = useRef(null)
+  const appliedNativeIds = useRef(new Set())
+  nativeCompletionRef.current = async command => {
+    const store = useStore.getState()
+    if (store.ready === false) return undefined
+    const active = store.S.active
+    const wasApplied = appliedNativeIds.current.has(command.id)
+    if (!wasApplied) {
+      if (!validNativeSetTarget(store.S, command)
+        || useUI.getState().work
+        || (useUI.getState().timer && !useUI.getState().timer.ready)) {
+        // Stale/edited/finished target: explicitly reject it after flushing whatever
+        // the latest workout is, rather than ticking an unrelated set.
+        try { await store.flushNativeSet() } catch { return undefined }
+        useUI.getState().toast(t('Set changed. Complete it in the workout instead.'))
+        return false
+      }
+      const idx = command.entryIndex, i = command.setIndex
+      const side = command.side || undefined
+      toggle(idx, i, side)
+      const row = useStore.getState().S.active?.entries?.[idx]?.sets?.[i]
+      const completed = side ? row?.sides?.[side]?.done === true : row?.done === true
+      if (!completed) return undefined
+      appliedNativeIds.current.add(command.id)
+    }
+    // Even if the first file write failed, a retry with the same command ID must
+    // flush the already-ticked set rather than toggle it off again.
+    try {
+      await useStore.getState().flushNativeSet()
+      appliedNativeIds.current.delete(command.id)
+      return true
+    } catch { return undefined }
+  }
+  useEffect(() => registerNativeSetHandler(command => nativeCompletionRef.current?.(command)), [])
+
+  // After the finished exercise folded away (toggle, above): the new current thing
   // to do, so if it now sits under the header or low on the screen with little more than its title
   // showing, it glides up under the header. Where it is already in reach the page stays put. Run
   // after a closing sheet has put the page back (the effort picker ticks the set as it closes).
