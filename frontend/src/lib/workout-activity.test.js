@@ -31,7 +31,7 @@ vi.mock('./rest-activity.js', () => ({
   syncWorkoutActivity: vi.fn(async () => true),
   ackSetCompletion: vi.fn(async () => true),
 }))
-import { workoutSnapshot, watchWorkoutActivity, validNativeSetTarget, receiveNativeSetCommand, registerNativeSetHandler } from './workout-activity.js'
+import { workoutSnapshot, restNotificationBody, watchWorkoutActivity, validNativeSetTarget, receiveNativeSetCommand, registerNativeSetHandler } from './workout-activity.js'
 import { syncWorkoutActivity, ackSetCompletion } from './rest-activity.js'
 
 const session = () => ({
@@ -77,6 +77,23 @@ describe('Live Activity during the entire workout', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(syncWorkoutActivity).toHaveBeenCalledTimes(initial)
     stop()
+  })
+})
+
+describe('iOS rest-end notification wording', () => {
+  it('uses the next unfinished exercise and weight × reps from the Live Activity', () => {
+    const S = session()
+    expect(restNotificationBody(S)).toBe('Bench Press · 60 kg × 8')
+    S.active.entries[0].sets[1].done = true
+    expect(restNotificationBody(S)).toBe('Incline Row · 30 kg × 10')
+  })
+  it('uses the current unit and does not guess a finished or historical session', () => {
+    expect(restNotificationBody({ active: null })).toBeNull()
+    const S = session()
+    S.active.entries.forEach(e => e.sets.forEach(s => { s.done = true }))
+    expect(restNotificationBody(S)).toBeNull()
+    S.active.backfill = true
+    expect(restNotificationBody(S)).toBeNull()
   })
 })
 

@@ -221,6 +221,7 @@ describe('the Live Activity and its buttons', () => {
     }
     expect(widget).toMatch(/context\.attributes\.(pauseLabel|resumeLabel|minusLabel|plusLabel|skipLabel)/)
     expect(restActivity).toContain('notifyBody: alert.body')
+    expect(intents).toContain('content.body = state.notifyBody.isEmpty ? attributes.notifyBody : state.notifyBody')
   })
 
   // Three constants two languages have to agree on, because the Swift side uses them at a moment

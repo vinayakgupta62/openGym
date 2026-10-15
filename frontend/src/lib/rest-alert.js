@@ -44,7 +44,7 @@ const mmss = ms => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-export function buildRestAlert({ at, title, countdownTitle, totalSec, accent, sound = true, classic = false, tone = null, vibrate = true, alarmBuzz = false, now = Date.now() } = {}) {
+export function buildRestAlert({ at, title, countdownTitle, iosBody, totalSec, accent, sound = true, classic = false, tone = null, vibrate = true, alarmBuzz = false, now = Date.now() } = {}) {
   if (typeof at !== 'number' || !(at > now)) return null
   // Settings → Sound (#306): one of lib/sound.js REST_SOUNDS; without one, `classic` decides, as before.
   const kind = Object.hasOwn(REST_SOUNDS, tone) ? tone : classic === true ? 'classic' : 'chime'
@@ -62,6 +62,10 @@ export function buildRestAlert({ at, title, countdownTitle, totalSec, accent, so
     // the Live Activity, whose own buttons re-book that notification from Swift with these words
     // (ios/App/App/RestIntents.swift).
     body: `${label} · ${mmss(totalMs)}`,
+    // Native iOS notifications can use the next set's exercise and prescription.
+    // Leave Android's ongoing timer card / payload untouched. Carry the exact
+    // same text into ActivityKit so pause / ±15s from the Lock Screen preserve it.
+    iosBody: typeof iosBody === 'string' ? iosBody.replace(/\s+/g, ' ').trim().slice(0, 180) : '',
     pause: t('Pause'),
     resume: t('Resume'),
     minus: '− 15s',
@@ -156,20 +160,24 @@ const iosNotification = alert => ({
 
 /** The iOS end of the rest: schedule it, and say whether the page must stay quiet for it. */
 async function deliverIos(alert) {
+  // The workout snapshot is captured when the rest is booked. The ActivityKit
+  // buttons can re-book this notification while JavaScript is suspended, so both
+  // the original local notification and Swift must get this exact same body.
+  const notice = alert.iosBody ? { ...alert, body: alert.iosBody } : alert
   // Unlike Android, where the alarm sounds whether or not a notification may be posted, on iOS the
   // notification *is* the alert — so here the permission is worth waiting for. Asked once; the
   // dialog only appears on the first rest.
   // ActivityKit does not need notification authorization. Start it BEFORE prompting for
   // notification permission: waiting for a dialog or a failed notification schedule used to
   // prevent the Live Activity from ever being requested.
-  await startRestActivity(alert)
+  await startRestActivity(notice)
   const granted = await askNotifPermissionOnce()
   if (!(alert.at > Date.now())) return 'expired'
   let scheduled = false
   if (granted) {
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications')
-      await LocalNotifications.schedule({ notifications: [iosNotification(alert)] })
+      await LocalNotifications.schedule({ notifications: [iosNotification(notice)] })
       scheduled = true
     } catch { /* ActivityKit is independent of notification scheduling errors. */ }
   }
@@ -184,7 +192,7 @@ async function deliverIos(alert) {
 export function armRestAlert(at, opts = {}) {
   if (!MOBILE) return Promise.resolve(false)
   const mine = ++token
-  const alert = buildRestAlert({ at, title: opts.title, countdownTitle: opts.countdownTitle, totalSec: opts.totalSec, accent: opts.accent, sound: opts.sound, classic: opts.classic === true, tone: opts.tone, vibrate: opts.vibrate !== false, alarmBuzz: !!opts.alarmBuzz })
+  const alert = buildRestAlert({ at, title: opts.title, countdownTitle: opts.countdownTitle, iosBody: opts.iosBody, totalSec: opts.totalSec, accent: opts.accent, sound: opts.sound, classic: opts.classic === true, tone: opts.tone, vibrate: opts.vibrate !== false, alarmBuzz: !!opts.alarmBuzz })
   if (!alert) return Promise.resolve(false)
   // Outside the chain and never awaited: on Android the alarm, its tone and the alarm buzz do not
   // need the notification permission, and a dialog left open while the phone is put away must not

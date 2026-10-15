@@ -101,6 +101,27 @@ describe('the rest alert in the iOS app', () => {
     expect(unhandled).toEqual([])
   })
 
+  it('shows the next exercise and prescription on iOS while preserving Android timer copy', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    const iosBody = 'Barbell Incline Bench Press · 60 kg × 10'
+    await alert.armRestAlert(Date.now() + 90_000, {
+      totalSec: 90, countdownTitle: 'Rest', iosBody, sound: true,
+    })
+    expect(h.ln[0][1].notifications[0].body).toBe(iosBody)
+    expect(h.activity[0][1].notifyBody).toBe(iosBody)
+
+    // The native rest button re-books from ContentState without any WebView.
+    const swift = readFileSync(new URL('../../ios/App/App/RestIntents.swift', import.meta.url), 'utf8')
+    expect(swift).toContain('content.body = state.notifyBody.isEmpty ? attributes.notifyBody : state.notifyBody')
+
+    h.platform = 'android'
+    expect(alert.buildRestAlert({
+      at: Date.now() + 90_000, totalSec: 90, countdownTitle: 'Rest',
+      iosBody, now: Date.now(),
+    }).body).toBe('Rest · 1:30')
+  })
+
   it('keeps the page quiet while it is armed, and hands the end back when the rest comes down', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')

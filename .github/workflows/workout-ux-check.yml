@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - fix/ios-workout-ux-followups
+      - fix/ios-rest-notification-exercise-details
   workflow_dispatch:
 
 permissions:

@@ -81,6 +81,16 @@ export function workoutSnapshot(S) {
   }
 }
 
+/** The next-set details on the iOS rest-end notification should match the
+ * Lock Screen workout card (including supersets, units and exercise edits).
+ * Null means no eligible live/unfinished set; the notification then retains
+ * the existing generic fallback instead of inventing a lift. */
+export function restNotificationBody(S) {
+  const next = workoutSnapshot(S)
+  if (!next || next.setIndex < 0 || !next.exerciseName) return null
+  return [next.exerciseName, next.targetText].filter(Boolean).join(' · ')
+}
+
 /** Subscribe only to persisted workout state: the UI rest timer ticks every second,
  * but SwiftUI handles the countdown and workout elapsed clock by date itself. */
 export function watchWorkoutActivity(store) {
