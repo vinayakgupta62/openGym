@@ -268,6 +268,26 @@ describe('saving exercises added during an active planned workout', () => {
     expect(st.routines[0].ex).toHaveLength(1)
   })
 
+  it('adds exercises to the correct source routine in combined sessions', () => {
+    const st = makeState()
+    st.routines.push({ id: 'pull', name: 'Pull', ex: [{ id: 'row', sets: 3, reps: 8, weight: 40 }] })
+    const w = {
+      routineIds: ['push', 'pull'],
+      entries: [
+        entry('bench', { mode: 'reps', reps: 10 }, [row()], { rid: 'push' }),
+        entry('row', { mode: 'reps', reps: 8 }, [row()], { rid: 'pull' }),
+        entry('incline', { mode: 'reps', reps: 12 }, [row()], { rid: 'push' }),
+        entry('face-pull', { mode: 'reps', reps: 15 }, [row()], { rid: 'pull' }),
+      ],
+    }
+    expect(addedSessionExercises(w, st.routines).map(g => [g.routineId, g.indexes]))
+      .toEqual([['push', [2]], ['pull', [3]]])
+    expect(addSessionExercisesToRoutines(st, w)).toBe(2)
+    expect(st.routines[0].ex.map(e => e.id)).toEqual(['bench', 'incline'])
+    expect(st.routines[1].ex.map(e => e.id)).toEqual(['row', 'face-pull'])
+    expect(addSessionExercisesToRoutines(st, w)).toBe(0)
+  })
+
   it('does not import exercises with no logged work from the saved workout', () => {
     const st = makeState(), w = session()
     w.entries[1].sets = []
