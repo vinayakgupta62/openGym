@@ -481,7 +481,7 @@ describe('Workout set completion flow', () => {
     expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), { forSet: expect.any(Number) })
   })
 
-  it('does not auto-select earlier unfinished work after completing an ordinary exercise', async () => {
+  it('wraps to earlier unfinished work after the last selected exercise completes', async () => {
     await mount([
       exercise('pending-earlier', [false], { asked: true }),
       exercise('current-hold', [false], { asked: true, target: { mode: 'time', sec: 30, weight: 0 } }),
@@ -489,7 +489,7 @@ describe('Workout set completion flow', () => {
 
     await toggleSet(0)
 
-    expect(mocks.S.active.cur).toBe(1)
+    expect(mocks.S.active.cur).toBe(0)
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
     expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), { forSet: expect.any(Number) })
   })
@@ -536,7 +536,7 @@ describe('Workout add exercise flow', () => {
       active: { routineId: 'routine-1' },
       routines: [{ id: 'routine-1', ex: [] }],
     }],
-  ])('inserts after the current unit and leaves the inserted exercise selected after completion in a %s session', async (_label, overrides) => {
+  ])('inserts after the current unit and moves to the next after completion in a %s session', async (_label, overrides) => {
     await mount([
       exercise('current', [true], { asked: true }),
       exercise('pending', [false], { asked: true }),
@@ -554,7 +554,7 @@ describe('Workout add exercise flow', () => {
     await toggleSet(0)
 
     expect(mocks.S.active.entries[1].sets[0].done).toBe(true)
-    expect(mocks.S.active.cur).toBe(1)
+    expect(mocks.S.active.cur).toBe(2)
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
   })
 
@@ -1759,7 +1759,8 @@ describe('workout focus view', () => {
     await click(buttonNamed('Complete set'))
     expect(mocks.S.active.cur).toBe(1) // not 2
     await rerender()
-    expect(container.textContent).toContain('row')
+    expect(mocks.S.active.cur).toBe(1)
+    expect(container.textContent).toContain('Unknown exercise')
   })
 
   it('advances Focus when a timed set finishes through the shared timer', async () => {
