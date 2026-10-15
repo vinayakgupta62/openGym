@@ -1749,6 +1749,19 @@ describe('workout focus view', () => {
     expect(mocks.uiSnapshot().startWork).toHaveBeenCalled()
   })
 
+  it('never skips the next exercise when both Focus and the shared toggle offer to advance', async () => {
+    await mount([
+      exercise('bench', [false]),
+      exercise('row', [false]),
+      exercise('press', [false]),
+    ], 0, { active: { workoutView: 'focus' } })
+
+    await click(buttonNamed('Complete set'))
+    expect(mocks.S.active.cur).toBe(1) // not 2
+    await rerender()
+    expect(container.textContent).toContain('row')
+  })
+
   it('advances Focus when a timed set finishes through the shared timer', async () => {
     await mount([
       exercise('plank', [false], {

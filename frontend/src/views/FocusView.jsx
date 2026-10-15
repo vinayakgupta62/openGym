@@ -203,7 +203,10 @@ export default function FocusView({
     const active = useStore.getState().S.active
     if (!active) return
     if (unitDone) {
-      onAdvanceUnit()
+      // The shared workout toggle now advances completed exercises in every
+      // layout. Only invoke Focus's fallback when the marker is STILL in this
+      // unit; otherwise this second advance would skip the following exercise.
+      if (unit.includes(active.cur)) onAdvanceUnit()
       const nextEntryIdx = useStore.getState().S.active?.cur
       if (nextEntryIdx !== entryIdx) clearPointer(nextEntryIdx)
     }
