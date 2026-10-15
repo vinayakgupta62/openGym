@@ -88,6 +88,12 @@ struct RestLiveActivity: Widget {
                                 .foregroundStyle(Color.white.opacity(0.86))
                                 .lineLimit(1)
                         }
+                        if face(context) == RestActivityAttributes.Phase.workout
+                            && context.state.canCompleteSet {
+                            if #available(iOS 17.0, *) {
+                                CompleteSetButton(context: context, onDark: true)
+                            }
+                        }
                         if face(context) != RestActivityAttributes.Phase.workout {
                             if #available(iOS 17.0, *) {
                                 Buttons(context: context, onDark: true)
@@ -143,6 +149,11 @@ private struct LockScreenCard: View {
 
             if face(context) == RestActivityAttributes.Phase.workout {
                 SetProgress(context: context)
+                if context.state.canCompleteSet {
+                    if #available(iOS 17.0, *) {
+                        CompleteSetButton(context: context, onDark: false)
+                    }
+                }
             } else {
                 Bar(context: context, inset: 0)
                 HStack(alignment: .firstTextBaseline) {
@@ -174,6 +185,42 @@ private struct SetProgress: View {
                 .foregroundStyle(.secondary)
                 .fixedSize()
         }
+    }
+}
+
+// The tap is durable, but WebView persistence happens on foreground if iOS has
+// suspended the app. Show that truthful pending state rather than pretending that
+// an unacknowledged set was already saved. Only iOS 17+ supports Button(intent:).
+@available(iOS 17.0, *)
+private struct CompleteSetButton: View {
+    let context: ActivityViewContext<RestActivityAttributes>
+    let onDark: Bool
+
+    var body: some View {
+        Button(intent: RestCompleteSetIntent()) {
+            HStack(spacing: 7) {
+                Text(context.state.setPending ? "Queued — open openGym to save" : "Complete Set")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: 0)
+                if !context.state.setPending {
+                    Text("✓")
+                        .font(.system(size: 14, weight: .bold))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(onDark ? Color.white : Color.primary)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Accent.color(context.attributes.accentHex)
+                        .opacity(context.state.setPending ? 0.13 : (onDark ? 0.42 : 0.22)))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(context.state.setPending)
     }
 }
 
