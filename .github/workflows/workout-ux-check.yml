@@ -1,0 +1,36 @@
+# Frontend-only validation while reviewing iPhone workout UX fixes.
+# Deliberately does NOT call xcodebuild, sign an app, or publish an IPA.
+name: Workout UX Checks
+
+on:
+  push:
+    branches:
+      - fix/ios-workout-ux-followups
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workout-ux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Unit and component tests
+        working-directory: frontend
+        run: npm test
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
