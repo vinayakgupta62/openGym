@@ -1698,13 +1698,16 @@ function ActiveWorkout() {
         return
       }
 
-      // With finished exercises folding away in the list, the one you just finished does too: the
-      // marker moves on to what is left, so the open unit is the next thing to do (Discord: "view
-      // only what I have yet to do"). The scroll anchor holds what is on screen while it folds,
-      // and revealCur brings the next exercise up if it was left low on the screen. Only on new
-      // progress, never on a re-tick, and never in the other layouts, where the marker stays put.
-      if (collapseOn && freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur)) {
-        revealCur.current = true
+      // On the last set of an exercise (or the last member of a superset), move
+      // the active marker to the next unfinished exercise in *every* layout.
+      // Previously only a collapsing list advanced automatically, leaving Card
+      // and Focus users tapping Next after every finished exercise.
+      //
+      // We only move when the newly completed unit was the one selected. Logging
+      // a set elsewhere in List must not unexpectedly hijack navigation. A re-tick
+      // is excluded by the progress.isNew guard above.
+      if (freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur)) {
+        if (collapseOn) revealCur.current = true
         update(s => { if (s.active) s.active.cur = nextUnit[0] })
       }
 
