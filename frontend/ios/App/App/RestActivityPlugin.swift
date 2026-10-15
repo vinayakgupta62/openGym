@@ -38,7 +38,9 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "end", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "bind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "hold", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "hold", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "syncWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearRest", returnType: CAPPluginReturnPromise)
     ]
 
     /// `Any?` rather than `Activity<RestActivityAttributes>?`: naming that type in a stored property
@@ -74,6 +76,45 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         let accentHex: String
         let inkHex: String
         let state: StateIn
+    }
+
+    private struct WorkoutIn: Decodable {
+        let workoutId: String
+        let workoutName: String
+        let workoutStartedAt: Double
+        let exerciseName: String
+        let nextSetLabel: String
+        let targetText: String
+        let completedSets: Int
+        let totalSets: Int
+        let accentHex: String
+        let inkHex: String
+        let countdownTitle: String
+        let readyLabel: String
+        let pauseLabel: String
+        let resumeLabel: String
+        let minusLabel: String
+        let plusLabel: String
+        let skipLabel: String
+        let notifyTitle: String
+    }
+
+    @available(iOS 16.1, *)
+    private func stateOf(_ activity: Activity<RestActivityAttributes>) -> RestActivityAttributes.ContentState {
+        if #available(iOS 16.2, *) { return activity.content.state }
+        return activity.contentState
+    }
+
+    @available(iOS 16.1, *)
+    private func updateState(_ activity: Activity<RestActivityAttributes>,
+                             _ state: RestActivityAttributes.ContentState) async {
+        if #available(iOS 16.2, *) {
+            await activity.update(ActivityContent(
+                state: state,
+                staleDate: state.phase == RestActivityAttributes.Phase.rest ? state.endsAt : nil))
+        } else {
+            await activity.update(using: state)
+        }
     }
 
     public override func load() {
@@ -126,15 +167,31 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             endsAt: Date(timeIntervalSince1970: input.state.endsAt / 1000),
             totalMs: input.state.totalMs,
             phase: input.state.phase,
-            leftMs: input.state.leftMs)
+            leftMs: input.state.leftMs,
+            notifyTitle: input.notifyTitle, notifyBody: input.notifyBody,
+            notifySound: input.notifySound, restTitle: input.countdownTitle)
         // A running rest goes stale when it ends, which is how the card says "Ready" with the app
         // suspended; a held one has no end to go stale at (RestIntents.swift, RestBridge.staleDate).
         let stale = state.phase == RestActivityAttributes.Phase.rest ? state.endsAt : nil
 
         Task { @MainActor in
-            // A re-book is a restart: the range moved, and attributes are fixed for the life of an
-            // activity. Anything this app left behind is ended first, or two cards stack up.
-            await self.endAll()
+            // Update the rest inside the existing workout card so elapsed time and set
+            // progress survive the rest phase.
+            if let current = Activity<RestActivityAttributes>.activities.first {
+                var next = self.stateOf(current)
+                next.startAt = state.startAt
+                next.endsAt = state.endsAt
+                next.totalMs = state.totalMs
+                next.phase = RestActivityAttributes.Phase.rest
+                next.leftMs = state.leftMs
+                next.notifyTitle = state.notifyTitle
+                next.notifyBody = state.notifyBody
+                next.notifySound = state.notifySound
+                next.restTitle = state.restTitle
+                await self.updateState(current, next)
+                call.resolve(["started": true])
+                return
+            }
             do {
                 if #available(iOS 16.2, *) {
                     activity = try Activity.request(
@@ -148,6 +205,80 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch {
                 call.reject(error.localizedDescription, "failed")
             }
+        }
+    }
+
+    // The same ActivityKit card stays visible from workout start to workout finish.
+    @objc public func syncWorkout(_ call: CAPPluginCall) {
+        guard #available(iOS 16.1, *) else { call.resolve(["synced": false]); return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            call.resolve(["synced": false, "reason": "disabled"]); return
+        }
+        guard let input = try? call.decode(WorkoutIn.self), !input.workoutId.isEmpty else {
+            call.reject("invalid workout snapshot"); return
+        }
+        Task { @MainActor in
+            if let current = Activity<RestActivityAttributes>.activities.first,
+               self.stateOf(current).workoutId == input.workoutId {
+                var state = self.stateOf(current)
+                state.workoutName = input.workoutName
+                state.workoutStartedAt = Date(timeIntervalSince1970: input.workoutStartedAt / 1000)
+                state.exerciseName = input.exerciseName
+                state.nextSetLabel = input.nextSetLabel
+                state.targetText = input.targetText
+                state.completedSets = input.completedSets
+                state.totalSets = input.totalSets
+                await self.updateState(current, state)
+                call.resolve(["synced": true])
+                return
+            }
+            await self.endAll()
+            let attributes = RestActivityAttributes(
+                countdownTitle: input.countdownTitle, readyLabel: input.readyLabel,
+                pauseLabel: input.pauseLabel, resumeLabel: input.resumeLabel,
+                minusLabel: input.minusLabel, plusLabel: input.plusLabel,
+                skipLabel: input.skipLabel, notifyTitle: input.notifyTitle,
+                notifyBody: "", notifySound: false,
+                accentHex: input.accentHex, inkHex: input.inkHex)
+            let now = Date()
+            let state = RestActivityAttributes.ContentState(
+                startAt: now, endsAt: now, totalMs: 0,
+                phase: RestActivityAttributes.Phase.workout, leftMs: 0,
+                workoutId: input.workoutId, workoutName: input.workoutName,
+                workoutStartedAt: Date(timeIntervalSince1970: input.workoutStartedAt / 1000),
+                exerciseName: input.exerciseName, nextSetLabel: input.nextSetLabel,
+                targetText: input.targetText, completedSets: input.completedSets,
+                totalSets: input.totalSets)
+            do {
+                if #available(iOS 16.2, *) {
+                    activity = try Activity.request(attributes: attributes,
+                        content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+                } else {
+                    activity = try Activity.request(attributes: attributes, contentState: state, pushType: nil)
+                }
+                call.resolve(["synced": true])
+            } catch {
+                call.reject(error.localizedDescription)
+            }
+        }
+    }
+
+    // Cancel only rest; if a workout exists, it returns to the next-set view.
+    @objc public func clearRest(_ call: CAPPluginCall) {
+        guard #available(iOS 16.1, *) else { call.resolve(["cleared": false]); return }
+        Task { @MainActor in
+            guard let current = Activity<RestActivityAttributes>.activities.first else {
+                call.resolve(["cleared": true]); return
+            }
+            var state = self.stateOf(current)
+            if state.workoutId.isEmpty {
+                await self.endAll()
+            } else {
+                state.phase = RestActivityAttributes.Phase.workout
+                state.leftMs = 0
+                await self.updateState(current, state)
+            }
+            call.resolve(["cleared": true])
         }
     }
 

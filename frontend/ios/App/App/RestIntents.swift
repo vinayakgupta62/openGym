@@ -89,15 +89,16 @@ enum RestBridge {
     /// time. `@capacitor/local-notifications` schedules a one-shot with a time-interval trigger
     /// (LocalNotificationsPlugin.swift), which is what this mirrors; the identifier is the same, so
     /// this replaces the pending request rather than adding a second one.
-    static func rescheduleNotification(_ attributes: RestActivityAttributes, at date: Date) {
+    static func rescheduleNotification(_ attributes: RestActivityAttributes,
+                                       state: RestActivityAttributes.ContentState, at date: Date) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [notificationID])
         let interval = date.timeIntervalSinceNow
         guard interval > 0 else { return }
         let content = UNMutableNotificationContent()
-        content.title = attributes.notifyTitle
-        content.body = attributes.notifyBody
-        if attributes.notifySound {
+        content.title = state.notifyTitle.isEmpty ? attributes.notifyTitle : state.notifyTitle
+        content.body = state.notifyBody.isEmpty ? attributes.notifyBody : state.notifyBody
+        if state.notifySound {
             content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundName))
         }
         center.add(UNNotificationRequest(
@@ -165,7 +166,7 @@ enum RestBridge {
             state.endsAt = endsAt
             state.startAt = endsAt.addingTimeInterval(-state.totalMs / 1000)
             await update(activity, state)
-            rescheduleNotification(activity.attributes, at: endsAt)
+            rescheduleNotification(activity.attributes, state: state, at: endsAt)
             enqueue("pause", state, paused: false)
         } else {
             let left = state.endsAt.timeIntervalSinceNow * 1000
@@ -213,7 +214,7 @@ enum RestBridge {
         // seconds with the bar already full.
         state.startAt = endsAt.addingTimeInterval(-state.totalMs / 1000)
         await update(activity, state)
-        rescheduleNotification(activity.attributes, at: endsAt)
+        rescheduleNotification(activity.attributes, state: state, at: endsAt)
         enqueue("adjust", state, paused: false)
     }
 
@@ -223,7 +224,14 @@ enum RestBridge {
     static func skip() async {
         cancelNotification()
         if let activity = current() {
-            await activity.end(nil, dismissalPolicy: .immediate)
+            var state = activity.content.state
+            if state.workoutId.isEmpty {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            } else {
+                state.phase = RestActivityAttributes.Phase.workout
+                state.leftMs = 0
+                await update(activity, state)
+            }
         }
         enqueue("skip", nil, paused: false)
     }

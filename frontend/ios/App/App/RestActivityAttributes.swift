@@ -38,34 +38,64 @@ public struct RestActivityAttributes: ActivityAttributes {
     /// because the activity is *encoded* — by ActivityKit to restore it, and by JavaScript to start
     /// it — and a String is one less thing for the two to disagree about (lib/rest-activity.js).
     public enum Phase {
+        public static let workout = "workout"
         public static let rest = "rest"
         public static let paused = "paused"
         public static let ready = "ready"
     }
 
     public struct ContentState: Codable, Hashable {
-        /// When this rest began, for the progress bar's range. Not when the *activity* began: a
-        /// rest that is adjusted or resumed gets a new range, and the bar has to follow it.
         public var startAt: Date
-        /// When it ends. The clock and the bar both count down to this, and it is the stale date.
         public var endsAt: Date
-        /// The whole rest in milliseconds, for the paused bar's static value.
         public var totalMs: Double
-        /// The state the app is in: `Phase.rest`, `Phase.paused` or `Phase.ready`.
         public var phase: String
-        /// What is left, for the paused face and the Ready one. The running clock ignores it.
         public var leftMs: Double
 
-        public init(startAt: Date, endsAt: Date, totalMs: Double, phase: String, leftMs: Double) {
+        // These properties live in ContentState, since a workout changes exercises and sets
+        // without creating a new ActivityKit activity each time.
+        public var workoutId: String
+        public var workoutName: String
+        public var workoutStartedAt: Date
+        public var exerciseName: String
+        public var nextSetLabel: String
+        public var targetText: String
+        public var completedSets: Int
+        public var totalSets: Int
+
+        // The notification can be rebooked from the Lock Screen while JS is suspended.
+        public var notifyTitle: String
+        public var notifyBody: String
+        public var notifySound: Bool
+        public var restTitle: String
+
+        public init(startAt: Date, endsAt: Date, totalMs: Double, phase: String, leftMs: Double,
+                    workoutId: String = "", workoutName: String = "", workoutStartedAt: Date = Date(),
+                    exerciseName: String = "", nextSetLabel: String = "", targetText: String = "",
+                    completedSets: Int = 0, totalSets: Int = 0,
+                    notifyTitle: String = "", notifyBody: String = "",
+                    notifySound: Bool = true, restTitle: String = "") {
             self.startAt = startAt
             self.endsAt = endsAt
             self.totalMs = totalMs
             self.phase = phase
             self.leftMs = leftMs
+            self.workoutId = workoutId
+            self.workoutName = workoutName
+            self.workoutStartedAt = workoutStartedAt
+            self.exerciseName = exerciseName
+            self.nextSetLabel = nextSetLabel
+            self.targetText = targetText
+            self.completedSets = completedSets
+            self.totalSets = totalSets
+            self.notifyTitle = notifyTitle
+            self.notifyBody = notifyBody
+            self.notifySound = notifySound
+            self.restTitle = restTitle
         }
 
         public var isPaused: Bool { phase == Phase.paused }
         public var isReady: Bool { phase == Phase.ready }
+        public var hasWorkout: Bool { !workoutId.isEmpty }
     }
 
     /// The status word: "Rest" or "Switch sides" (lib/rest-alert.js countdownTitle).
