@@ -204,10 +204,8 @@ private struct CompleteSetButton: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 Spacer(minLength: 0)
-                if !context.state.setPending {
-                    Text("✓")
-                        .font(.system(size: 14, weight: .bold))
-                }
+                // No glyph or emoji: the wording is the action, consistent with
+                // the rest of openGym's minimal, text-forward iOS surfaces.
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)

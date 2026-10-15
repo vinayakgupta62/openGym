@@ -6,16 +6,33 @@ vi.mock('./i18n-core.js', () => ({ t: (s, n) => s.replace('{0}', String(n)) }))
 vi.mock('./accent.js', () => ({ accentValue: () => 'green' }))
 vi.mock('./rest-alert.js', () => ({ accentColors: () => ({ accent: 0xff30d158, ink: 0xff000000 }) }))
 vi.mock('./history.js', () => ({
-  doneUnits: s => s.done ? 1 : 0,
-  setUnits: () => 1,
+  doneUnits: s => s.sides ? Number(!!s.sides.L.done) + Number(!!s.sides.R.done) : (s.done ? 1 : 0),
+  setUnits: s => s.sides ? 2 : 1,
   isBw: () => false,
-  modeOf: () => 'reps',
+  modeOf: c => c.mode || 'reps',
   setLabel: (_, s) => s.w + '×' + s.r,
 }))
+vi.mock('./workout-model.js', () => ({ isSideSet: s => !!s?.sides }))
+vi.mock('./workout-keys.js', () => ({
+  nextOpenSet: (entries, cur) => {
+    if (!entries?.length) return null
+    for (const idx of [...entries.keys()].map(i => (i + (cur || 0)) % entries.length)) {
+      const i = entries[idx].sets.findIndex(s => !s.done)
+      if (i >= 0) {
+        const s = entries[idx].sets[i]
+        return { idx, i, side: s.sides ? (s.sides.L.done ? 'R' : 'L') : undefined, current: idx === cur }
+      }
+    }
+    return null
+  },
+}))
 vi.mock('./speed.js', () => ({ speedUnitOf: () => 'km/h' }))
-vi.mock('./rest-activity.js', () => ({ syncWorkoutActivity: vi.fn(async () => true) }))
-import { workoutSnapshot, watchWorkoutActivity } from './workout-activity.js'
-import { syncWorkoutActivity } from './rest-activity.js'
+vi.mock('./rest-activity.js', () => ({
+  syncWorkoutActivity: vi.fn(async () => true),
+  ackSetCompletion: vi.fn(async () => true),
+}))
+import { workoutSnapshot, watchWorkoutActivity, validNativeSetTarget, receiveNativeSetCommand, registerNativeSetHandler } from './workout-activity.js'
+import { syncWorkoutActivity, ackSetCompletion } from './rest-activity.js'
 
 const session = () => ({
   unit: 'kg', active: {
@@ -60,5 +77,75 @@ describe('Live Activity during the entire workout', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(syncWorkoutActivity).toHaveBeenCalledTimes(initial)
     stop()
+  })
+})
+
+describe('Lock Screen Complete Set safety', () => {
+  it('accepts only the exact workout, exercise, row, side and fingerprint', () => {
+    const S = session()
+    const target = workoutSnapshot(S)
+    const command = {
+      type: 'complete-set', id: 'command-1',
+      workoutId: target.workoutId, entryIndex: target.setEntryIndex,
+      exerciseId: target.setExerciseId, setIndex: target.setIndex,
+      side: target.setSide, setToken: target.setToken,
+    }
+    expect(validNativeSetTarget(S, command)).toBe(true)
+    expect(validNativeSetTarget(S, { ...command, setIndex: 0 })).toBe(false)
+    expect(validNativeSetTarget(S, { ...command, workoutId: 'older-session' })).toBe(false)
+    S.active.entries[0].sets[1].w = 62.5
+    expect(validNativeSetTarget(S, command)).toBe(false)
+  })
+
+  it('knows which unilateral side is next, and counts sides independently', () => {
+    const S = session()
+    S.active.entries[0].sets = [{
+      sides: { L: { w: 15, r: 8, done: true }, R: { w: 15, r: 8, done: false } },
+      w: 15, r: 16, done: false,
+    }]
+    const snap = workoutSnapshot(S)
+    expect(snap.setSide).toBe('R')
+    expect(snap.nextSetLabel).toContain('Right')
+    expect([snap.completedSets, snap.totalSets]).toEqual([1, 3])
+  })
+
+  it('does not permit direct completion of time-based and cardio sets', () => {
+    const S = session()
+    S.active.entries[0].target = { mode: 'time' }
+    expect(workoutSnapshot(S).canCompleteSet).toBe(false)
+    S.active.entries[0].target = { mode: 'cardio' }
+    expect(workoutSnapshot(S).canCompleteSet).toBe(false)
+  })
+
+  it('ACKs a durable native command only AFTER the real completion handler returns', async () => {
+    vi.mocked(ackSetCompletion).mockClear()
+    let finish
+    const complete = new Promise(resolve => { finish = resolve })
+    const unbind = registerNativeSetHandler(() => complete)
+    receiveNativeSetCommand({ type: 'complete-set', id: 'native-42' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(ackSetCompletion).not.toHaveBeenCalled()
+    finish(true)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(ackSetCompletion).toHaveBeenCalledWith('native-42')
+    unbind()
+  })
+
+  it('waits for boot before syncing a cached workout and syncs when ready flips', async () => {
+    vi.mocked(syncWorkoutActivity).mockClear()
+    const store = {
+      value: { S: session(), ready: false }, fn: null,
+      getState() { return this.value },
+      subscribe(fn) { this.fn = fn; return () => { this.fn = null } },
+    }
+    const unsub = watchWorkoutActivity(store)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(syncWorkoutActivity).not.toHaveBeenCalled()
+    const before = store.value
+    store.value = { ...before, ready: true }
+    store.fn(store.value, before)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(syncWorkoutActivity).toHaveBeenCalledTimes(1)
+    unsub()
   })
 })

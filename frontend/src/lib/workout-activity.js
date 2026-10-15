@@ -106,7 +106,9 @@ export function watchWorkoutActivity(store) {
   }
   sync()
   const unStore = store.subscribe((next, prev) => {
-    if (next.S !== prev.S) sync()
+    // finishBoot may flip ready without replacing S, so a restored workout
+    // still needs its very first native Live Activity sync.
+    if (next.S !== prev.S || (next.ready && !prev.ready)) sync()
   })
   const onVisible = () => { if (!document.hidden) sync(true) }
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
@@ -152,7 +154,9 @@ export const hasNativeSetPending = () => nativeCommands.size > 0
 
 export function subscribeNativeSetPending(listener) {
   pendingSubscribers.add(listener)
-  if (nativeCommands.size) queueMicrotask(listener)
+  if (nativeCommands.size) queueMicrotask(() => {
+    try { listener() } catch { /* navigation can be retried on visibilitychange */ }
+  })
   return () => pendingSubscribers.delete(listener)
 }
 
