@@ -23,10 +23,12 @@ name: iOS app (.ipa)
 on:
   # The button to press: Actions → iOS app (.ipa) → Run workflow → pick a branch.
   workflow_dispatch:
-  # A released version ships an .ipa beside the APK, the way the GitLab job intended.
+  # Every verified change merged to our fork's main produces a new unsigned IPA.
+  # A released version also ships one beside the APK, the way the GitLab job intended.
   # Deliberately no `paths:` here — it would apply to tag pushes too and skip a release tag
   # whose commit happened to touch none of the listed files.
   push:
+    branches: ['main']
     tags: ['v*']
   # A pull request that touches the app builds a test IPA too, so native fixes can
   # be sideloaded for device validation before anything is merged to main.
