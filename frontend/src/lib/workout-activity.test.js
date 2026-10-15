@@ -109,6 +109,11 @@ describe('Lock Screen Complete Set safety', () => {
     expect([snap.completedSets, snap.totalSets]).toEqual([1, 3])
   })
 
+  it('never offers Complete Set without a live workout', () => {
+    expect(workoutSnapshot({ active: null })).toBeNull()
+    expect(workoutSnapshot({ active: { id: 'missing-time', start: null, entries: [] } })).toBeNull()
+  })
+
   it('does not permit direct completion of time-based and cardio sets', () => {
     const S = session()
     S.active.entries[0].target = { mode: 'time' }
