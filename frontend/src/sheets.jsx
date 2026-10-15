@@ -2514,6 +2514,17 @@ function WorkoutDetail({ w, close }) {
   // anywhere) renders flat.
   const groups = sessionSections(w.entries)
   const grouped = groups.length > 1 || (groups[0] && groups[0].rid && (w.routineIds || []).length > 1)
+  const sessionAdditions = addedSessionExercises(w, st.routines)
+  const keepSessionAdds = () => confirmSheet({
+    title: t('Add exercises to original routine?'),
+    message: t('Keep the exercises you added during this session in their original routine for next time. Existing exercises and past workouts are unchanged.'),
+    confirmText: t('Add to routine'),
+    onConfirm: () => {
+      let kept = 0
+      update(s => { kept = addSessionExercisesToRoutines(s, w) })
+      if (kept) toast(t('{0} exercises added to routine', kept))
+    },
+  })
   return <>
     <h3>{w.name}</h3>
     <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
@@ -2568,6 +2579,12 @@ function WorkoutDetail({ w, close }) {
       initial.current = latest.current.trim().slice(0, NOTE_MAX)
       workoutDurationSheet(w, close)
     }}>{t('Change duration')}</Button>
+    {sessionAdditions.length > 0 && <>
+      <Button icon="plus" disabled={!!st.active} onClick={keepSessionAdds}>
+        {t('Add new exercises to original routine')}
+      </Button>
+      <div style={{ height: 8 }} />
+    </>}
     <Button icon="plus" onClick={() => confirmSheet({
       title: t('Save as routine?'),
       message: t('Create an independent routine from these exercise targets. Your workout history is kept.'),
