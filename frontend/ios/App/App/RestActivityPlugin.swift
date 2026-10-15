@@ -40,7 +40,8 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hold", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncWorkout", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "clearRest", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "clearRest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "ackSet", returnType: CAPPluginReturnPromise)
     ]
 
     /// `Any?` rather than `Activity<RestActivityAttributes>?`: naming that type in a stored property
@@ -87,6 +88,12 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         let targetText: String
         let completedSets: Int
         let totalSets: Int
+        let setToken: String
+        let setEntryIndex: Int
+        let setIndex: Int
+        let setExerciseId: String
+        let setSide: String
+        let canCompleteSet: Bool
         let accentHex: String
         let inkHex: String
         let countdownTitle: String
@@ -219,7 +226,8 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         Task { @MainActor in
             if let current = Activity<RestActivityAttributes>.activities.first,
-               self.stateOf(current).workoutId == input.workoutId {
+               (self.stateOf(current).workoutId == input.workoutId
+                || self.stateOf(current).workoutId.isEmpty) {
                 var state = self.stateOf(current)
                 state.workoutName = input.workoutName
                 state.workoutStartedAt = Date(timeIntervalSince1970: input.workoutStartedAt / 1000)
@@ -228,6 +236,19 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 state.targetText = input.targetText
                 state.completedSets = input.completedSets
                 state.totalSets = input.totalSets
+                // An acknowledged set advances the source-of-truth token. A foreground
+                // refresh of unchanged state must NOT prematurely clear a pending tap.
+                if state.setToken != input.setToken || state.completedSets != input.completedSets {
+                    state.setPending = false
+                    state.pendingSetId = ""
+                }
+                state.workoutId = input.workoutId
+                state.setToken = input.setToken
+                state.setEntryIndex = input.setEntryIndex
+                state.setIndex = input.setIndex
+                state.setExerciseId = input.setExerciseId
+                state.setSide = input.setSide
+                state.canCompleteSet = input.canCompleteSet
                 await self.updateState(current, state)
                 call.resolve(["synced": true])
                 return
@@ -248,7 +269,10 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 workoutStartedAt: Date(timeIntervalSince1970: input.workoutStartedAt / 1000),
                 exerciseName: input.exerciseName, nextSetLabel: input.nextSetLabel,
                 targetText: input.targetText, completedSets: input.completedSets,
-                totalSets: input.totalSets)
+                totalSets: input.totalSets,
+                setToken: input.setToken, setEntryIndex: input.setEntryIndex,
+                setIndex: input.setIndex, setExerciseId: input.setExerciseId,
+                setSide: input.setSide, canCompleteSet: input.canCompleteSet)
             do {
                 if #available(iOS 16.2, *) {
                     activity = try Activity.request(attributes: attributes,
@@ -279,6 +303,30 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 await self.updateState(current, state)
             }
             call.resolve(["cleared": true])
+        }
+    }
+
+    // JS acknowledges a set only after the same toggle handler used by in-app taps
+    // has persisted it (or has rejected a stale target). Until then the native command
+    // stays in UserDefaults and is redelivered on the next foreground.
+    @objc public func ackSet(_ call: CAPPluginCall) {
+        guard #available(iOS 17.0, *) else {
+            call.resolve(["acknowledged": false]); return
+        }
+        guard let id = call.getString("id"), !id.isEmpty else {
+            call.reject("Missing set command id"); return
+        }
+        Task { @MainActor in
+            _ = RestBridge.acknowledgeSet(id)
+            if let current = Activity<RestActivityAttributes>.activities.first {
+                var state = self.stateOf(current)
+                if state.pendingSetId == id {
+                    state.setPending = false
+                    state.pendingSetId = ""
+                    await self.updateState(current, state)
+                }
+            }
+            call.resolve(["acknowledged": true])
         }
     }
 
@@ -372,6 +420,11 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     private func handOver(live: Bool) {
         for var command in RestBridge.drain() {
             command["live"] = live
+            notifyListeners("rest", data: command)
+        }
+        // Set commands are not drained here: if the JS process crashes after
+        // receiving them, a later bind must redeliver the same id for safe retry.
+        for command in RestBridge.pendingSets() {
             notifyListeners("rest", data: command)
         }
     }
