@@ -123,59 +123,75 @@ struct RestLiveActivity: Widget {
 private struct LockScreenCard: View {
     let context: ActivityViewContext<RestActivityAttributes>
 
+    private var phase: String { face(context) }
+    private var resting: Bool {
+        phase == RestActivityAttributes.Phase.rest
+            || phase == RestActivityAttributes.Phase.paused
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // The Lock Screen gives Live Activities a finite card height. Keep this
+        // compact so the actions do not get clipped beneath the Home Screen buttons:
+        // exercise / set / timer / thin progress / actions, with no duplicate timers.
+        VStack(alignment: .leading, spacing: 6) {
             if context.state.hasWorkout {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(context.state.workoutName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(context.state.workoutStartedAt, style: .timer)
-                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(context.state.exerciseName)
-                        .font(.system(size: 17, weight: .semibold))
-                        .lineLimit(2)
-                    Text(context.state.nextSetLabel
-                         + (context.state.targetText.isEmpty ? "" : "  ·  " + context.state.targetText))
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.80)
+                    Spacer(minLength: 0)
+                    if phase == RestActivityAttributes.Phase.workout {
+                        Text(context.state.workoutStartedAt, style: .timer)
+                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
+                Text(context.state.nextSetLabel
+                     + (context.state.targetText.isEmpty ? "" : "  ·  " + context.state.targetText))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
 
-            if face(context) == RestActivityAttributes.Phase.workout {
+            if phase == RestActivityAttributes.Phase.workout {
                 SetProgress(context: context)
                 if context.state.canCompleteSet {
                     if #available(iOS 17.0, *) {
                         CompleteSetButton(context: context, onDark: false)
                     }
                 }
-            } else {
-                Bar(context: context, inset: 0)
-                HStack(alignment: .firstTextBaseline) {
-                    Clock(context: context, size: 40, onDark: false)
-                    Spacer(minLength: 8)
-                    Status(context: context, alignment: .trailing, onDark: false)
+            } else if phase == RestActivityAttributes.Phase.ready {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Clock(context: context, size: 26, onDark: false)
+                    Spacer()
+                    if context.state.hasWorkout {
+                        Text(context.state.workoutStartedAt, style: .timer)
+                            .font(.system(size: 12, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                if #available(iOS 17.0, *) {
-                    Buttons(context: context, onDark: false)
-                }
-                if face(context) == RestActivityAttributes.Phase.ready
-                    && context.state.canCompleteSet {
-                    SetProgress(context: context)
+                if context.state.canCompleteSet {
                     if #available(iOS 17.0, *) {
                         CompleteSetButton(context: context, onDark: false)
                     }
                 }
+            } else if resting {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Clock(context: context, size: 28, onDark: false)
+                    Spacer(minLength: 8)
+                    Status(context: context, alignment: .trailing, onDark: false)
+                }
+                Bar(context: context, inset: 0)
+                if #available(iOS 17.0, *) {
+                    Buttons(context: context, onDark: false)
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
     }
 }
 
@@ -246,7 +262,7 @@ private struct Buttons: View {
     let onDark: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button(intent: RestPauseIntent()) {
                 face(context.state.isPaused ? context.attributes.resumeLabel : context.attributes.pauseLabel,
                      prominent: true)
@@ -266,8 +282,8 @@ private struct Buttons: View {
             .font(.system(size: 13, weight: .semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: 30)
             .foregroundStyle(prominent ? Accent.color(context.attributes.accentHex)
                                        : (onDark ? Color.white : Color.primary))
             .background(
@@ -377,7 +393,15 @@ private struct Bar: View {
             } else if context.state.isPaused {
                 ProgressView(value: max(0, context.state.leftMs), total: max(1, context.state.totalMs))
             } else if context.state.endsAt > context.state.startAt {
-                ProgressView(timerInterval: context.state.startAt...context.state.endsAt, countsDown: true)
+                // The two-argument initializer adds a *second* remaining-time label
+                // under the track. Supply EmptyView labels instead: Clock above is
+                // the one countdown that the Lock Screen should display.
+                ProgressView(timerInterval: context.state.startAt...context.state.endsAt,
+                             countsDown: true) {
+                    EmptyView()
+                } currentValueLabel: {
+                    EmptyView()
+                }
             } else {
                 ProgressView(value: 0, total: max(1, context.state.totalMs))
             }
