@@ -5,6 +5,7 @@
    PR 1 stopped at transport and held its answer as `unvalidated`. This PR closes that seam, so
    the assertions below are about what now comes out the other end: a checked bundle, a checked
    change-set, and the two ways a job can fail the validator rather than the parser. */
+import './coach-fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

@@ -4,6 +4,7 @@
  * or from the synced state, and a client can put megabytes in either. The Coach runs on the
  * instance's own key, so an unbounded field is a bill someone else pays. These tests feed the
  * builder far more than any screen allows, through both doors, and check what comes out. */
+import './coach-fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

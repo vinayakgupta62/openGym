@@ -4,6 +4,7 @@
  * not read off the capped job log. A scheduled review covers a batch of workouts once, on the
  * workout's own clock rather than the phone's local date, and an answer the model was paid
  * for counts as that review even when it was unusable. */
+import './coach-fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

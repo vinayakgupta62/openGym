@@ -1,3 +1,4 @@
+import './coach-fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tempData, sampleState } from './helpers.mjs';
@@ -45,6 +46,15 @@ test('the same profile always gets the same handle, and two profiles never share
   const b = payload.build(S, { handle: handleFor('uid-b'), kind: 'review' }).meta.profile;
   assert.equal(a1, a2);
   assert.notEqual(a1, b);
+});
+
+test('the July fixture is in the real 12-week window at the controlled test date', () => {
+  const original = sampleState();
+  const included = payload.reviewWindow(original);
+  assert.equal(included.length, 1, 'the sample workout must be eligible at the fixture date');
+  assert.equal(included[0].id, 'w1');
+  const expired = sampleState({ workouts: [{ ...original.workouts[0], d: '2026-07-19' }] });
+  assert.equal(payload.reviewWindow(expired).length, 0, 'real 12-week cutoff still applies');
 });
 
 test('review payload carries the plan, the window, effort and aggregates', () => {
