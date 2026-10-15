@@ -9,9 +9,24 @@ import { accentValue } from './accent.js'
 import { accentColors } from './rest-alert.js'
 import { doneUnits, isBw, modeOf, setLabel, setUnits } from './history.js'
 import { speedUnitOf } from './speed.js'
-import { syncWorkoutActivity } from './rest-activity.js'
+import { nextOpenSet } from './workout-keys.js'
+import { isSideSet } from './workout-model.js'
+import { ackSetCompletion, syncWorkoutActivity } from './rest-activity.js'
 
 const color = value => '#' + ((Number(value) >>> 0) & 0xffffff).toString(16).padStart(6, '0')
+
+// A compact deterministic fingerprint of the actual row as shown. The native button carries
+// this back unchanged, so a moved/edited/replaced row cannot become an accidental completion.
+const targetToken = parts => {
+  const raw = JSON.stringify(parts)
+  let first = 2166136261, second = 3339675911
+  for (let i = 0; i < raw.length; i++) {
+    const n = raw.charCodeAt(i)
+    first = Math.imul(first ^ n, 16777619)
+    second = Math.imul(second ^ n, 2246822519)
+  }
+  return [first, second].map(x => (x >>> 0).toString(16).padStart(8, '0')).join('')
+}
 
 /** Pure projection of the live workout for the widget and test suite. */
 export function workoutSnapshot(S) {
@@ -22,14 +37,15 @@ export function workoutSnapshot(S) {
   const start = Number(A.start)
   if (!A.id || !Number.isFinite(start) || start <= 0) return null
   const at = Math.max(0, Math.min(entries.length - 1, Number.isInteger(A.cur) ? A.cur : 0))
-  // The selected exercise wins unless it is finished; then show the next unfinished
-  // exercise so the Lock Screen never suggests repeating a completed set.
-  const order = Array.from({ length: entries.length }, (_, i) => (at + i) % entries.length)
-  const idx = order.find(i => (entries[i].sets || []).some(row => !row.done)) ?? at
+  // Use the same superset-aware ordering as the in-app Space/Enter set action,
+  // rather than accidentally completing the wrong member of a superset.
+  const next = nextOpenSet(entries, at)
+  const idx = next?.idx ?? at
   const entry = entries[idx]
   const sets = entry?.sets || []
-  const nextIdx = sets.findIndex(row => !row.done)
+  const nextIdx = next?.i ?? -1
   const selected = nextIdx >= 0 ? sets[nextIdx] : null
+  const side = next?.side || ''
   const done = entries.reduce((sum, e) => sum + (e.sets || []).reduce((n, s) => n + doneUnits(s), 0), 0)
   const total = entries.reduce((sum, e) => sum + (e.sets || []).reduce((n, s) => n + setUnits(s), 0), 0)
   const cfg = { ...(entry?.target || {}), id: entry?.id }
@@ -47,10 +63,20 @@ export function workoutSnapshot(S) {
     workoutName: String(A.name || t('Workout')).slice(0, 70),
     workoutStartedAt: start,
     exerciseName: entry ? exerciseNameText(exOr(entry.id)).slice(0, 80) : t('Add exercise'),
-    nextSetLabel: selected ? t('Set {0}', nextIdx + 1) + ' / ' + sets.length : t('All sets done'),
+    nextSetLabel: selected
+      ? t('Set {0}', nextIdx + 1) + ' / ' + sets.length + (side ? ' · ' + t(side === 'L' ? 'Left' : 'Right') : '')
+      : t('All sets done'),
     targetText: targetText.slice(0, 100),
     completedSets: done,
     totalSets: total,
+    // Only rep-based sets can be completed here; time/cardio sets need their in-app
+    // stopwatch and measurement UI. Each side of a unilateral rep set is a separate tap.
+    canCompleteSet: !!selected && modeOf(cfg) === 'reps',
+    setEntryIndex: selected ? idx : -1,
+    setIndex: nextIdx,
+    setExerciseId: selected ? String(entry.id) : '',
+    setSide: side,
+    setToken: selected ? targetToken([A.id, A.start, idx, entry.id, nextIdx, side, selected]) : '',
     accentHex: color(accent),
     inkHex: color(ink),
   }
@@ -65,7 +91,12 @@ export function watchWorkoutActivity(store) {
   let stopped = false
   const sync = (force = false) => {
     if (stopped) return
-    const snapshot = workoutSnapshot(store.getState().S)
+    const current = store.getState()
+    // A fresh WebView can hold a cached workout before boot restores the latest
+    // native mirror. Ending or replacing its Live Activity here would erase a
+    // command that the user just pressed on the Lock Screen.
+    if (current.ready === false) return
+    const snapshot = workoutSnapshot(current.S)
     const key = JSON.stringify(snapshot)
     if (!force && key === last) return
     last = key
@@ -84,4 +115,70 @@ export function watchWorkoutActivity(store) {
     unStore()
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
   }
+}
+
+
+// Native set commands remain durable in iOS UserDefaults until an explicit ACK.
+// WebView may be suspended when the intent runs, so only the existing Workout
+// toggle handler is allowed to commit a set, after the screen mounts again.
+const nativeCommands = new Map()
+const pendingSubscribers = new Set()
+let completeHandler = null
+let draining = false
+
+export function validNativeSetTarget(S, command) {
+  const snapshot = workoutSnapshot(S)
+  return !!(snapshot?.canCompleteSet
+    && typeof command?.id === 'string' && command.id.length > 0
+    && snapshot.workoutId === command.workoutId
+    && snapshot.setEntryIndex === command.entryIndex
+    && snapshot.setExerciseId === command.exerciseId
+    && snapshot.setIndex === command.setIndex
+    && snapshot.setSide === (command.side || '')
+    && snapshot.setToken === command.setToken)
+}
+
+export function receiveNativeSetCommand(command) {
+  if (!command || command.type !== 'complete-set'
+    || typeof command.id !== 'string' || !command.id) return
+  nativeCommands.set(command.id, command)
+  for (const listener of pendingSubscribers) {
+    try { listener() } catch { /* navigation can wait for the next visible pass */ }
+  }
+  void flushNativeSets()
+}
+
+export const hasNativeSetPending = () => nativeCommands.size > 0
+
+export function subscribeNativeSetPending(listener) {
+  pendingSubscribers.add(listener)
+  if (nativeCommands.size) queueMicrotask(listener)
+  return () => pendingSubscribers.delete(listener)
+}
+
+/** Register the SAME toggle used by in-app set rows. If not mounted, keep commands
+ * queued and do not acknowledge them; native will redeliver on a later bind. */
+export function registerNativeSetHandler(handler) {
+  completeHandler = handler
+  void flushNativeSets()
+  return () => { if (completeHandler === handler) completeHandler = null }
+}
+
+async function flushNativeSets() {
+  if (draining || !completeHandler) return
+  draining = true
+  try {
+    for (const [id, command] of nativeCommands) {
+      if (!completeHandler) break
+      let committed
+      try { committed = await completeHandler(command) }
+      catch { break }
+      // undefined means the app has not finished restoring; no ACK, retry later.
+      if (committed !== true && committed !== false) break
+      // For success AND stale-target rejection, ACK only after the store handler
+      // returns. An ACK failure keeps the native action for safe retry.
+      if (!(await ackSetCompletion(id))) break
+      nativeCommands.delete(id)
+    }
+  } finally { draining = false }
 }
