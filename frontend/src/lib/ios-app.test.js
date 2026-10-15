@@ -107,16 +107,22 @@ describe('the Live Activity and its buttons', () => {
     expect(read('ios/App/App/AppDelegate.swift')).toContain('application.applicationSupportsShakeToEdit = false')
   })
 
-  it('keeps a single readable timer in the compact Island when rest becomes Ready', () => {
+  it('uses Option 1 in the compact Island: SET/REST label plus exactly one clock', () => {
     const widget = read('ios/App/AppWidgets/RestWidgetBundle.swift')
+    const leading = widget.split('} compactLeading: {')[1].split('} compactTrailing: {')[0]
+    const trailing = widget.split('} compactTrailing: {')[1].split('} minimal: {')[0]
     const compact = widget.split('private struct CompactClock: View {')[1]
       .split('private struct MinimalClock: View {')[0]
-    expect(compact).toContain('Text("Ready")')
-    expect(compact).not.toContain('TimerMark(')
-    const leading = widget.split('} compactLeading: {')[1].split('} compactTrailing: {')[0]
+    expect(leading).toContain('"SET"')
     expect(leading).toContain('"REST"')
-    expect(leading).toContain('"DONE"')
+    expect(leading).not.toContain('"DONE"')
     expect(leading).not.toContain('TimerMark(')
+    expect(leading).not.toContain('Clock(context:')
+    expect(trailing.match(/CompactClock\(context:/g)).toHaveLength(1)
+    expect(compact).toContain('Text("Ready")')
+    expect(compact).toContain('Text(timerInterval:')
+    expect(compact).toContain('Text(context.state.workoutStartedAt, style: .timer)')
+    expect(compact).not.toContain('TimerMark(')
   })
   const attributes = read('ios/App/App/RestActivityAttributes.swift')
   const intents = read('ios/App/App/RestIntents.swift')

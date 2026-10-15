@@ -12,10 +12,12 @@ branches contain the existing ActivityKit Live Activity and native plugin fixes.
   padding, and reduced minimum width; keeps the rest buttons visible. Apple's
   Now Playing card can change how several Live Activities stack, so overlapping
   music-card geometry still requires device testing.
-- **Dynamic Island:** compact leading now says SET / REST / DONE, compact trailing
-  shows *one* workout/rest clock or Ready. No duplicate green stopwatches when
-  rest expires; minimal layout remains supported for concurrent Spotify activity.
-  iOS positions the compact leading/trailing surfaces around the camera by design.
+- **Dynamic Island (Option 1):** compact leading says SET while exercising and
+  REST while resting (including paused/finished rest). Compact trailing renders
+  exactly one clock: workout duration, a running/frozen rest timer, or Ready once
+  rest ends. No duplicate green stopwatches or redundant DONE badge. The minimal
+  layout remains available when Spotify shares the Island; iOS positions both
+  compact surfaces around the camera by design.
   A Live Activity must support both Island and Lock Screen presentations.
 - **Automatic next exercise:** checking the last set of the selected unit
   selects the next unfinished unit in Cards, Focus, List, and Compact. A superset
@@ -37,8 +39,9 @@ branches contain the existing ActivityKit Live Activity and native plugin fixes.
    Undo Typing alert should not appear on the app.
 2. Start a long-name lift: the title should truncate within the Lock Screen card.
    Verify with Spotify playing and paused and with two Live Activities.
-3. On the Home Screen, compact Island shows REST + countdown, then DONE + Ready,
-   never two identical green timer symbols. During work it shows SET + elapsed.
+3. On the Home Screen, compact Island shows REST + countdown, then REST + Ready,
+   never two identical timer symbols. During work it shows SET + elapsed. Check
+   paused rest and Spotify simultaneously; the system decides their spacing.
 4. Complete a singleton exercise's last set in Cards; the next exercise
    appears without tapping Next. Repeat in Focus/List/Compact.
 5. Complete a two-member superset and verify the app follows round-major

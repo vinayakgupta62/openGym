@@ -104,11 +104,12 @@ struct RestLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // The system anchors these two compact regions at opposite ends of the
-                // Island. Use a *word* on the left and one clock on the right, never
-                // two stopwatches (especially when a rest changes to Ready).
-                Text(face(context) == RestActivityAttributes.Phase.workout ? "SET"
-                     : face(context) == RestActivityAttributes.Phase.ready ? "DONE" : "REST")
+                // The compact Island deliberately has just two pieces: the mode on
+                // the left (SET or REST) and a single time on the right. iOS controls
+                // the space between them, particularly alongside music playback.
+                // When the rest expires, the right-hand clock says "Ready";
+                // avoid adding a third "DONE" state or another timer icon.
+                Text(face(context) == RestActivityAttributes.Phase.workout ? "SET" : "REST")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.5)
                     .foregroundStyle(Accent.color(context.attributes.accentHex))
