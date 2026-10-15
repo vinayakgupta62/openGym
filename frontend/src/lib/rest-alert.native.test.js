@@ -13,7 +13,7 @@ const h = vi.hoisted(() => {
   vi.stubEnv('VITE_MOBILE', '1')   // lib/mobile.js: MOBILE = import.meta.env.VITE_MOBILE === '1'
   const store = new Map()
   vi.stubGlobal('localStorage', { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), clear: () => store.clear() })
-  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null, ln: [], activity: [] }
+  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null, ln: [], activity: [], audio: [] }
 })
 
 // Shaped like the proxy registerPlugin() returns: every property is a native method, `then`
@@ -28,6 +28,10 @@ const pluginProxy = (name = 'RestAlert') => new Proxy({}, {
       if (name === 'RestActivity') {
         h.activity.push([String(prop), ...args])
         return Promise.resolve({ started: true, ended: true })
+      }
+      if (name === 'RestAudio') {
+        h.audio.push([String(prop), ...args])
+        return Promise.resolve(prop === 'play' ? { played: true } : { ready: true })
       }
       h.calls.push(String(prop))
       if (h.platform !== 'android') return Promise.reject(new Error(`"RestAlert.${String(prop)}()" is not implemented on ${h.platform}`))
@@ -64,6 +68,7 @@ beforeEach(() => {
   h.request = null
   h.ln = []
   h.activity = []
+  h.audio = []
   localStorage.clear()
   unhandled.length = 0
   process.on('unhandledRejection', onUnhandled)
@@ -85,7 +90,8 @@ describe('the rest alert in the iOS app', () => {
     // The Android plugin is never reached from iOS; the Live Activity plugin is (RestActivity),
     // and the notification goes through @capacitor/local-notifications.
     expect(h.calls).toEqual([])
-    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity', 'RestAudio'])
+    expect(h.audio.map(x => x[0])).toEqual(['prepare'])
     expect(h.ln).toHaveLength(1)
     const [what, arg] = h.ln[0]
     expect(what).toBe('schedule')
@@ -95,9 +101,8 @@ describe('the rest alert in the iOS app', () => {
     // gets one line of text.
     expect(arg.notifications[0].body).toBe('Rest · 2:00')
     expect(arg.notifications[0].schedule.at.getTime()).toBe(at)
-    // Named, on purpose, so UNNotificationSound falls back to the system sound — omitting it is
-    // silence on iOS (see rest-alert.js).
-    expect(typeof arg.notifications[0].sound).toBe('string')
+    expect(arg.notifications[0].sound).toBe('opengym-rest-chime.wav')
+    expect(arg.notifications[0].extra.openGymRestTone).toBe('chime')
     expect(unhandled).toEqual([])
   })
 
@@ -120,6 +125,22 @@ describe('the rest alert in the iOS app', () => {
       at: Date.now() + 90_000, totalSec: 90, countdownTitle: 'Rest',
       iosBody, now: Date.now(),
     }).body).toBe('Rest · 1:30')
+  })
+
+  it('uses the selected bundled tone and preserves it for the Lock Screen controls', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, tone: 'bell' })
+    expect(h.ln[0][1].notifications[0].sound).toBe('opengym-rest-bell.wav')
+    expect(h.ln[0][1].notifications[0].extra.openGymRestTone).toBe('bell')
+    expect(h.activity[0][1].notifyTone).toBe('bell')
+  })
+
+  it('uses native ducked playback when the WebView is active without notifications', async () => {
+    h.platform = 'ios'
+    const alert = await import('./rest-alert.js')
+    expect(await alert.toneNative('whistle')).toBe(true)
+    expect(h.audio.at(-1)).toEqual(['play', { tone: 'whistle' }])
   })
 
   it('keeps the page quiet while it is armed, and hands the end back when the rest comes down', async () => {

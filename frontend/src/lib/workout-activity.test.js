@@ -87,6 +87,15 @@ describe('iOS rest-end notification wording', () => {
     S.active.entries[0].sets[1].done = true
     expect(restNotificationBody(S)).toBe('Incline Row · 30 kg × 10')
   })
+  it('preserves ordinary exercise names and truncates unusually long ones before the prescription', () => {
+    const S = session()
+    S.active.entries[0].id = 'Barbell Incline Bench Press'
+    expect(restNotificationBody(S)).toBe('Barbell Incline Bench Press · 60 kg × 8')
+    S.active.entries[0].id = 'Super Long Custom Shoulder Press With Additional Extremely Long Exercise Name That Keeps Going'
+    const msg = restNotificationBody(S)
+    expect(msg).toContain('… · 60 kg × 8')
+    expect(Array.from(msg.split(' · ')[0]).length).toBe(48)
+  })
   it('uses the current unit and does not guess a finished or historical session', () => {
     expect(restNotificationBody({ active: null })).toBeNull()
     const S = session()
