@@ -151,6 +151,8 @@ describe('the Live Activity and its buttons', () => {
     expect(intents).toContain('struct RestCompleteSetIntent: LiveActivityIntent')
     expect(intents).toContain('static let setQueueKey = "opengym_set_commands"')
     expect(intents).toContain('!state.setPending')
+    expect(intents).toContain('!queue.contains(where:')
+    expect(intents).toContain('guard state.phase != RestActivityAttributes.Phase.workout, !state.setPending')
     expect(intents).toContain('UserDefaults.standard.set(queue, forKey: setQueueKey)')
     expect(widget.match(/CompleteSetButton\(context:/g) || []).toHaveLength(2)
     expect(widget).toContain('Button(intent: RestCompleteSetIntent())')

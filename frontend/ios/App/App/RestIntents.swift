@@ -173,6 +173,7 @@ enum RestBridge {
         return true
     }
 
+    @MainActor
     static func completeNextSet() async {
         guard let activity = current() else { return }
         var state = activity.content.state
@@ -187,7 +188,11 @@ enum RestBridge {
               state.setEntryIndex >= 0, !state.setExerciseId.isEmpty else { return }
 
         var queue = pendingSets()
-        guard queue.count < setQueueLimit else { return }
+        guard queue.count < setQueueLimit,
+              !queue.contains(where: {
+                  ($0["workoutId"] as? String) == state.workoutId
+                      && ($0["setToken"] as? String) == state.setToken
+              }) else { return }
         let id = UUID().uuidString
         let command: [String: Any] = [
             "type": "complete-set",
@@ -255,6 +260,7 @@ enum RestBridge {
     static func adjust(by seconds: Double) async {
         guard let activity = current() else { return }
         var state = activity.content.state
+        guard state.phase != RestActivityAttributes.Phase.workout, !state.setPending else { return }
         if state.isPaused {
             let left = state.leftMs + seconds * 1000
             if left <= 0 { await skip(); return }
@@ -283,16 +289,18 @@ enum RestBridge {
     /// immediately (not "dismissed after a while": the user just said they are done) and the app is
     /// told to drop the countdown and its push.
     static func skip() async {
+        // A stale Skip button must not cancel a new rest or undo a pending set
+        // action. The old implementation enqueued "skip" even with no activity.
+        guard let activity = current() else { return }
+        var state = activity.content.state
+        guard state.phase != RestActivityAttributes.Phase.workout, !state.setPending else { return }
         cancelNotification()
-        if let activity = current() {
-            var state = activity.content.state
-            if state.workoutId.isEmpty {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            } else {
-                state.phase = RestActivityAttributes.Phase.workout
-                state.leftMs = 0
-                await update(activity, state)
-            }
+        if state.workoutId.isEmpty {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        } else {
+            state.phase = RestActivityAttributes.Phase.workout
+            state.leftMs = 0
+            await update(activity, state)
         }
         enqueue("skip", nil, paused: false)
     }
