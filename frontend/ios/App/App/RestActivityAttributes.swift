@@ -61,6 +61,16 @@ public struct RestActivityAttributes: ActivityAttributes {
         public var targetText: String
         public var completedSets: Int
         public var totalSets: Int
+        // These target fields identify the precise row presented to the user.
+        // The WebView must acknowledge the native command AFTER persisting the set.
+        public var setToken: String
+        public var setEntryIndex: Int
+        public var setIndex: Int
+        public var setExerciseId: String
+        public var setSide: String
+        public var canCompleteSet: Bool
+        public var setPending: Bool
+        public var pendingSetId: String
 
         // The notification can be rebooked from the Lock Screen while JS is suspended.
         public var notifyTitle: String
@@ -72,6 +82,10 @@ public struct RestActivityAttributes: ActivityAttributes {
                     workoutId: String = "", workoutName: String = "", workoutStartedAt: Date = Date(),
                     exerciseName: String = "", nextSetLabel: String = "", targetText: String = "",
                     completedSets: Int = 0, totalSets: Int = 0,
+                    setToken: String = "", setEntryIndex: Int = -1, setIndex: Int = -1,
+                    setExerciseId: String = "", setSide: String = "",
+                    canCompleteSet: Bool = false, setPending: Bool = false,
+                    pendingSetId: String = "",
                     notifyTitle: String = "", notifyBody: String = "",
                     notifySound: Bool = true, restTitle: String = "") {
             self.startAt = startAt
@@ -87,6 +101,14 @@ public struct RestActivityAttributes: ActivityAttributes {
             self.targetText = targetText
             self.completedSets = completedSets
             self.totalSets = totalSets
+            self.setToken = setToken
+            self.setEntryIndex = setEntryIndex
+            self.setIndex = setIndex
+            self.setExerciseId = setExerciseId
+            self.setSide = setSide
+            self.canCompleteSet = canCompleteSet
+            self.setPending = setPending
+            self.pendingSetId = pendingSetId
             self.notifyTitle = notifyTitle
             self.notifyBody = notifyBody
             self.notifySound = notifySound

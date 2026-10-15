@@ -55,6 +55,8 @@ enum RestBridge {
     static let soundName = "opengym-rest"
     /// Where a button press waits for a WebView that is not there to hear it.
     static let queueKey = "opengym_rest_commands"
+    static let setQueueKey = "opengym_set_commands"
+    static let setQueueLimit = 60
     /// Posted by a button, observed by RestActivityPlugin. Only ever in the app's own process.
     static let changed = Notification.Name("openGymRestCommand")
     /// A phone left on the lock screen through a whole workout cannot grow this without bound. Ten
@@ -151,6 +153,57 @@ enum RestBridge {
         let queue = defaults.array(forKey: queueKey) as? [[String: Any]] ?? []
         defaults.removeObject(forKey: queueKey)
         return queue
+    }
+
+    // MARK: - Set completion from the Lock Screen / expanded Dynamic Island
+    //
+    // This queue survives app suspension and process death in UserDefaults. Unlike
+    // rest actions, these commands are not removed when handed to JS: only the JS
+    // acknowledgement after an actual workout-store write removes them.
+    static func pendingSets() -> [[String: Any]] {
+        UserDefaults.standard.array(forKey: setQueueKey) as? [[String: Any]] ?? []
+    }
+
+    @discardableResult
+    static func acknowledgeSet(_ id: String) -> Bool {
+        let previous = pendingSets()
+        let remaining = previous.filter { ($0["id"] as? String) != id }
+        if previous.count == remaining.count { return false }
+        UserDefaults.standard.set(remaining, forKey: setQueueKey)
+        return true
+    }
+
+    static func completeNextSet() async {
+        guard let activity = current() else { return }
+        var state = activity.content.state
+        // No accidental double-tick. The widget does not guess what row follows
+        // while the WebView is suspended; no set can be ticked during a rest.
+        guard state.phase == RestActivityAttributes.Phase.workout,
+              state.hasWorkout, state.canCompleteSet, !state.setPending,
+              !state.setToken.isEmpty, state.setIndex >= 0,
+              state.setEntryIndex >= 0, !state.setExerciseId.isEmpty else { return }
+
+        var queue = pendingSets()
+        guard queue.count < setQueueLimit else { return }
+        let id = UUID().uuidString
+        let command: [String: Any] = [
+            "type": "complete-set",
+            "id": id,
+            "workoutId": state.workoutId,
+            "entryIndex": state.setEntryIndex,
+            "exerciseId": state.setExerciseId,
+            "setIndex": state.setIndex,
+            "side": state.setSide,
+            "setToken": state.setToken,
+            "at": Date().timeIntervalSince1970 * 1000
+        ]
+        // Durable write FIRST; a terminated process after this point can re-deliver.
+        queue.append(command)
+        UserDefaults.standard.set(queue, forKey: setQueueKey)
+        state.setPending = true
+        state.pendingSetId = id
+        await update(activity, state)
+        NotificationCenter.default.post(name: changed, object: nil)
     }
 
     // MARK: - What the buttons do
@@ -283,3 +336,13 @@ struct RestSkipIntent: LiveActivityIntent {
         return .result()
     }
 }
+
+@available(iOS 17.0, *)
+struct RestCompleteSetIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Complete the current set"
+    static var isDiscoverable: Bool = false
+
+    func perform() async throws -> some IntentResult {
+        await RestBridge.completeNextSet()
+        return .result()
+    }
