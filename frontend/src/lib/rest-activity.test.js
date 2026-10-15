@@ -29,7 +29,8 @@ const proxyFor = calls => new Proxy({}, {
     return (...args) => {
       calls.push([String(prop), ...args])
       if (h.fail) return Promise.reject(new Error(`"RestActivity.${String(prop)}()" is not implemented`))
-      return Promise.resolve(prop === 'addListener' ? { remove: async () => {} } : { bound: true })
+      return Promise.resolve(prop === 'addListener' ? { remove: async () => {} }
+        : prop === 'ackSet' ? { acknowledged: true } : { bound: true })
     }
   },
 })
@@ -90,6 +91,13 @@ describe('the rest card’s buttons reaching the page', () => {
     document.dispatchEvent(new Event('visibilitychange'))
     await settle()
     expect(names().filter(m => m === 'bind')).toHaveLength(2)
+  })
+
+  it('ACKs set commands through the native bridge only with a command id', async () => {
+    const { ackSetCompletion } = await import('./rest-activity.js')
+    expect(await ackSetCompletion('set-55')).toBe(true)
+    expect(names()).toContain('ackSet')
+    expect(await ackSetCompletion('')).toBe(false)
   })
 
   it('registers one listener and one startup bind however many times it is called', async () => {

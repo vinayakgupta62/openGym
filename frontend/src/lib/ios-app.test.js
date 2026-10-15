@@ -142,6 +142,26 @@ describe('the Live Activity and its buttons', () => {
     expect(existsSync(new URL(`../../ios/App/App/${name}`, import.meta.url)), name).toBe(true)
   })
 
+  it('the lock-screen and expanded Island Complete Set intent is durable and guarded', () => {
+    const plugin = read('ios/App/App/RestActivityPlugin.swift')
+    const activity = read('src/lib/workout-activity.js')
+    const view = read('src/views/Workout.jsx')
+    expect(attributes).toContain('public var setToken: String')
+    expect(attributes).toContain('public var setPending: Bool')
+    expect(intents).toContain('struct RestCompleteSetIntent: LiveActivityIntent')
+    expect(intents).toContain('static let setQueueKey = "opengym_set_commands"')
+    expect(intents).toContain('!state.setPending')
+    expect(intents).toContain('UserDefaults.standard.set(queue, forKey: setQueueKey)')
+    expect(widget.match(/CompleteSetButton\(context:/g) || []).toHaveLength(2)
+    expect(widget).toContain('Button(intent: RestCompleteSetIntent())')
+    expect(plugin).toContain('CAPPluginMethod(name: "ackSet"')
+    expect(plugin).toContain('RestBridge.pendingSets()')
+    expect(restActivity).toContain('ackSetCompletion')
+    expect(activity).toContain('validNativeSetTarget')
+    expect(view).toContain('registerNativeSetHandler')
+    expect(view).toContain('flushNativeSet()')
+  })
+
   it('the buttons are drawn only where they exist, and performed only in the app', () => {
     // Button(intent:) is iOS 17; the extension itself is built for 16.1, where the card is the
     // read-only countdown it was before. Every use of the button row needs its own availability

@@ -149,3 +149,24 @@ describe('Lock Screen Complete Set safety', () => {
     unsub()
   })
 })
+
+describe('durable native set command retries', () => {
+  it('does not call the set completion handler again if only the native ACK failed', async () => {
+    vi.mocked(ackSetCompletion).mockReset()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    let count = 0
+    const unbind = registerNativeSetHandler(async () => { count++; return true })
+    const cmd = { type: 'complete-set', id: 'retry-55' }
+    receiveNativeSetCommand(cmd)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(count).toBe(1)
+    expect(ackSetCompletion).toHaveBeenCalledTimes(1)
+    receiveNativeSetCommand(cmd) // a second native bind redelivers the same durable ID
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(count).toBe(1)
+    expect(ackSetCompletion).toHaveBeenCalledTimes(2)
+    vi.mocked(ackSetCompletion).mockResolvedValue(true)
+    unbind()
+  })
+})
