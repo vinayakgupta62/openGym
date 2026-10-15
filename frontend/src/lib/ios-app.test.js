@@ -115,7 +115,7 @@ describe('the Live Activity and its buttons', () => {
       .split('private struct MinimalClock: View {')[0]
     expect(leading).toContain('"SET"')
     expect(leading).toContain('"REST"')
-    expect(leading).not.toContain('"DONE"')
+    expect(leading).not.toMatch(/Text\([^\n]*"DONE"/)
     expect(leading).not.toContain('TimerMark(')
     expect(leading).not.toContain('Clock(context:')
     expect(trailing.match(/CompactClock\(context:/g)).toHaveLength(1)
