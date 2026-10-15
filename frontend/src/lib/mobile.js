@@ -58,11 +58,11 @@ export async function nativeLoad() {
   } catch (e) { return null }   // first launch, or unreadable — localStorage copy takes over
 }
 
-export async function nativeSave(state) {
+export async function nativeSave(state, { strict = false } = {}) {
   try {
     const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
     await Filesystem.writeFile({ path: FILE, directory: Directory.Data, data: JSON.stringify(state), encoding: Encoding.UTF8 })
-  } catch (e) { /* keep the localStorage copy */ }
+  } catch (e) { if (strict) throw e /* else keep the localStorage copy */ }
 }
 
 // "Connect to my server" mode (lib/remote.js): which of local-only / a paired remote account this
@@ -80,11 +80,14 @@ export async function readJsonFile(name) {
     return JSON.parse(r.data)
   } catch (e) { return null }
 }
-export async function writeJsonFile(name, data) {
+export async function writeJsonFile(name, data, { strict = false } = {}) {
   try {
     const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
     await Filesystem.writeFile({ path: name, directory: Directory.Data, data: JSON.stringify(data), encoding: Encoding.UTF8 })
-  } catch (e) { /* not a Capacitor build, or the write failed — the caller's in-memory copy stands */ }
+  } catch (e) {
+    if (strict) throw e
+    // Not a Capacitor build, or the write failed: the in-memory copy stands.
+  }
 }
 
 export async function loadRemoteFile() {

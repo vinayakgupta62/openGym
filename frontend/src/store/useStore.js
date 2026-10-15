@@ -480,20 +480,26 @@ export const useStore = create((set, get) => {
   // so a mirror write that failed, or a kill between the two writes, leaves a file that is never
   // taken. One write at a time, each of the copy in the store when its turn comes: a slow write
   // can never land after a later one.
-  const saveMirror = () => (mirrorQ = mirrorQ.then(async () => {
-    const S = get().S
-    let owner = null
-    try { owner = localStorage.getItem('gym_owner') } catch { /* unknown — the file is then nobody's */ }
-    await nativeSave(S)
-    await writeJsonFile(MIRROR_OWNER_FILE, { owner, ts: S._ts || 0 })
-  }).catch(() => {}))
+  const saveMirror = (strict = false) => {
+    const attempt = mirrorQ.then(async () => {
+      const S = get().S
+      let owner = null
+      try { owner = localStorage.getItem('gym_owner') } catch { /* unknown owner */ }
+      await nativeSave(S, { strict })
+      await writeJsonFile(MIRROR_OWNER_FILE, { owner, ts: S._ts || 0 }, { strict })
+    })
+    // Keep the background queue alive after failures, but surface failures to a
+    // Lock Screen set action so it cannot acknowledge an unsaved workout.
+    mirrorQ = attempt.catch(() => {})
+    return strict ? attempt : mirrorQ
+  }
   // Mobile build: mirror the state into a file in the app's data directory (survives WebView
   // storage eviction) and keep the native reminder schedule in step with the weekly plan.
   // `now` skips the wait and returns the write, for a copy that replaced the last one wholesale.
-  const nativePersist = (now = false) => {
+  const nativePersist = (now = false, strict = false) => {
     clearTimeout(saveTm)
     saveTm = null
-    const write = () => { saveTm = null; syncReminder(get().S); syncHealth(get().S).catch(() => {}); return saveMirror() }
+    const write = () => { saveTm = null; syncReminder(get().S); syncHealth(get().S).catch(() => {}); return saveMirror(strict) }
     if (now) return write()
     saveTm = setTimeout(write, 800)
     return null
@@ -1337,6 +1343,14 @@ export const useStore = create((set, get) => {
         clearTimeout(backupTm)
         backupTm = setTimeout(() => { backupTm = null; get().autoBackupNow() }, AUTO_BACKUP_SOON_MS)
       }
+    },
+    // The normal mobile file mirror is debounced. A Lock Screen Complete Set
+    // must wait for a real filesystem write before native UserDefaults can drop
+    // its pending command. Failure keeps the command retryable.
+    async flushNativeSet() {
+      if (!MOBILE) return false
+      await nativePersist(true, true)
+      return true
     },
     // An edit of a saved workout (lib/session-edit.js) is saved or dropped like any other change:
     // the store's own sync takes it to the server, and a conflict on the way is settled by
