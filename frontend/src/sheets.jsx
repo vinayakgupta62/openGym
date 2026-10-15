@@ -45,7 +45,7 @@ import { speedUnitOf, toSpeed, fromSpeed } from './lib/speed.js'
 import { buildCompletedWorkout, sessionEnd } from './lib/finish-workout.js'
 import { refillAfter } from './lib/rotation.js'
 import { isWarmupRow, hasCompletedWork } from './lib/workout-model.js'
-import { saveSessionAsRoutine } from './lib/session-routines.js'
+import { saveSessionAsRoutine, addedSessionExercises, addSessionExercisesToRoutines } from './lib/session-routines.js'
 import { repeatSessionEntries } from './lib/session-repeat.js'
 import { swapActiveExercise } from './lib/active-exercise-swap.js'
 import { useSheetKeyboard, useRevealActiveChip, tappable } from './lib/use-sheet-keyboard.js'
@@ -3307,6 +3307,17 @@ function CardioDone({ st, w }) {
 
 function FinishSummary({ w, prs, e1prs = [], close }) {
   const st = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  // The saved workout is history, while a routine is a reusable plan. Exercise
+  // additions are session-only by default, but the athlete can deliberately
+  // keep them in the original routine without recreating the whole plan.
+  const newInPlan = addedSessionExercises(w, st.routines)
+  const addedCount = newInPlan.reduce((n, group) => n + group.indexes.length, 0)
+  const keepAdditions = () => {
+    let saved = 0
+    update(s => { saved = addSessionExercisesToRoutines(s, w) })
+    if (saved) toast(t('{0} exercises added to routine', saved))
+  }
   return <div style={{ textAlign: 'center', padding: '8px 0' }}>
     <div style={{ fontSize: 44, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="trophy" /></div>
     <h3 style={{ margin: '8px 0' }}>{t('Workout complete!')}</h3>
@@ -3328,6 +3339,18 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
         what is added here goes straight onto its record. */}
     <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+    {addedCount > 0 && <div className="card" style={{ textAlign: 'start', marginBottom: 12 }}>
+      <strong>{t('Keep these exercises for next time?')}</strong>
+      <p className="muted small" style={{ margin: '7px 0 11px' }}>
+        {newInPlan.map(group => t('{0}: {1} new', group.name, group.indexes.length)).join(' · ')}
+        {' · '}{t('Exercises added during a workout normally stay in its history.')}
+      </p>
+      <Button icon="plus" onClick={keepAdditions}>
+        {newInPlan.length === 1
+          ? t('Add to {0} routine', newInPlan[0].name)
+          : t('Add exercises to routines')}
+      </Button>
+    </div>}
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>
 }
