@@ -254,6 +254,11 @@ describe('the Live Activity and its buttons', () => {
     }
     const swift = read('ios/App/App/RestAudioPlugin.swift')
     expect(swift).toContain('.duckOthers')
+    // Duck for 1 s even when the WAV (Bell, Soft) runs longer. Remaining
+    // playback is mixed normally and cannot keep Spotify turned down.
+    expect(swift).toContain('maxDuckSeconds: TimeInterval = 1.0')
+    expect(swift).toContain('options: [.mixWithOthers]')
+    expect(swift).toContain('self?.stopDucking()')
     expect(swift).toContain('options.subtracting(.sound)')
     expect(swift).toContain('.notifyOthersOnDeactivation')
     expect(swift).toContain('notification.request.identifier == "42"')

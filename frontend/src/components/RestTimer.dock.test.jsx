@@ -3,6 +3,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RestTimer, { applyRestLeft } from './RestTimer.jsx'
+import { readFileSync } from 'node:fs'
 import { useUI } from '../store/useUI.js'
 import { useStore } from '../store/useStore.js'
 
@@ -44,6 +45,17 @@ const sheetHost = () => {
 
 // v1.3.11: one docked row; the clock is a button that opens the wheel at the time left.
 describe('the docked rest bar', () => {
+  it('places its safe-area inset UNDER the rounded dock, not inside a tall empty panel', () => {
+    const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
+    const dock = css.split('body.no-tabbar #timer{')[1].split('}')[0]
+    expect(dock).toContain('bottom:calc(8px + var(--sab))')
+    expect(dock).toContain('padding:10px 12px')
+    expect(dock).toContain('border-radius:18px')
+    expect(dock).not.toContain('padding-bottom:calc(')
+    expect(css).toContain('body.no-tabbar #timer .acts .pause')
+    expect(css).toContain('min-height:44px')
+  })
+
   it('is one row: the clock with its label, then −15, +15, pause and Skip', () => {
     act(() => useUI.getState().startRest(90, 0))
     mount()

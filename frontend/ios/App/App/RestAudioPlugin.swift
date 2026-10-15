@@ -6,8 +6,9 @@ import UserNotifications
 /**
  * The locked-phone rest-end notification plays a bundled WAV. When openGym is
  * foregrounded, the SAME notification is presented without its system sound:
- * instead a native AVAudioPlayer uses .duckOthers for a second or two to make
- * the chime audible over music. Non-rest notifications are left alone.
+ * instead a native AVAudioPlayer uses .duckOthers for at most one second,
+ * then continues any remaining chime mixed at normal music level.
+ * Non-rest notifications are left alone.
  */
 @MainActor
 final class RestAudioPlayer: NSObject, AVAudioPlayerDelegate {
@@ -17,6 +18,10 @@ final class RestAudioPlayer: NSObject, AVAudioPlayerDelegate {
     private var prior: (category: AVAudioSession.Category, mode: AVAudioSession.Mode,
                         options: AVAudioSession.CategoryOptions)?
     private var watchdog: DispatchWorkItem?
+    private var unduckTask: DispatchWorkItem?
+    // Lower competing audio only briefly. Longer sound choices (e.g. Bell)
+    // continue playing after music is restored to its usual volume.
+    private let maxDuckSeconds: TimeInterval = 1.0
 
     @discardableResult
     func play(tone: String) -> Bool {
@@ -36,7 +41,16 @@ final class RestAudioPlayer: NSObject, AVAudioPlayerDelegate {
             guard tonePlayer.play() else { throw NSError(domain: "RestAudio", code: 1) }
             prior = old
             player = tonePlayer
-            // A lost delegate callback must not leave Spotify ducked indefinitely.
+
+            // Release .duckOthers after ONE second even when the selected tone
+            // lasts longer. Switching to mix-only keeps the rest of the chime
+            // audible without leaving Spotify quiet for the full sound.
+            let restoreMusic = DispatchWorkItem { [weak self] in self?.stopDucking() }
+            unduckTask = restoreMusic
+            DispatchQueue.main.asyncAfter(deadline: .now() + maxDuckSeconds, execute: restoreMusic)
+
+            // If an interrupted player loses its finish callback, recover the
+            // user's original audio session instead of leaving it active.
             let timeout = DispatchWorkItem { [weak self] in self?.finish() }
             watchdog = timeout
             DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: timeout)
@@ -50,7 +64,23 @@ final class RestAudioPlayer: NSObject, AVAudioPlayerDelegate {
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) { finish() }
 
+    private func stopDucking() {
+        guard player != nil else { return }
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // Removing .duckOthers restores competing audio even when our
+            // longer bell/soft WAV still has a little playback remaining.
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        } catch {
+            // If the category cannot switch, stop our playback rather than
+            // leave an active ducking session holding music down.
+            finish()
+        }
+    }
+
     private func finish() {
+        unduckTask?.cancel()
+        unduckTask = nil
         watchdog?.cancel()
         watchdog = nil
         player?.stop()

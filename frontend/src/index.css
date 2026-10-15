@@ -171,8 +171,8 @@ button,.chip,.tile,.item,.wday,.cal-d,.swatch,.hm-c,.lrow,.seg button,.stp butto
 /* Android 15 with the keyboard up: room to scroll the last field on a page above the keys.
    The tab bar stays where it is, under the keyboard, rather than riding up on it. */
 :root[data-native-kb] #app,:root[data-native-kb] body.resting #app,:root[data-native-kb] body.no-tabbar.resting #app{padding-bottom:calc(88px + var(--native-kb))}
-/* Keep the last workout controls clear of the mobile overlays without adding a second
-   screenful of blank scroll space. The stacked rest timer needs the larger reserve. */
+/* Keep the last workout controls clear of the overlays without adding a second
+   screenful of blank scroll space. The workout's floating bar reserves space below. */
 body.resting #app{padding-bottom:calc(166px + var(--sab))}
 /* The workout screen has no tab bar (App.jsx): only the docked rest bar, when it is there. */
 body.no-tabbar #app{padding-bottom:calc(24px + var(--sab))}
@@ -1465,23 +1465,55 @@ body.chips-dragging *{cursor:inherit}
    buttons keep theirs; the time itself still never shrinks (the label adds no minimum). */
 #timer.working .tclock{flex:1 1 0;min-width:auto}
 #timer.working .acts{flex:none}
-/* Docked on the workout screen: edge to edge, flush with the bottom, the home indicator's inset
-   inside it. */
+/* iPhone workout dock: float the actual controls ABOVE the home-indicator
+   safe area instead of putting the inset inside a full-width panel. The old
+   bottom padding left a large black rectangle under the buttons on iPhones.
+   This is one compact, rounded row with a progress line on its top edge. */
 body.no-tabbar #timer{
-  inset-inline-start:0;inset-inline-end:0;bottom:0;
-  border-radius:var(--r-xl) var(--r-xl) 0 0;padding:14px 14px calc(10px + var(--sab));
-  box-shadow:0 -10px 30px -14px rgba(0,0,0,.55);
+  inset-inline-start:12px;inset-inline-end:12px;
+  bottom:calc(8px + var(--sab));
+  box-sizing:border-box;
+  min-height:72px;
+  border:1px solid var(--sep-op);
+  border-radius:18px;
+  padding:10px 12px;
+  gap:10px;
+  box-shadow:0 8px 28px -8px rgba(0,0,0,.6);
 }
-body.no-tabbar #timer.working{box-shadow:inset 0 var(--hair) 0 var(--acc),0 -10px 30px -14px rgba(0,0,0,.55)}
-@media (max-width:399px){
-  #timer .acts{gap:4px}
-  #timer .acts .adj{padding-inline:6px;gap:1px}
-  #timer .acts .pause,#timer .acts .pause-slot{padding-inline:10px}
-  #timer .acts .skip{padding-inline:10px}
+body.no-tabbar #timer.working{
+  box-shadow:inset 0 0 0 var(--hair) var(--acc),0 8px 28px -8px rgba(0,0,0,.6);
+}
+/* Keep the clock large and legible, but make every control a real touch target
+   instead of squeezing Pause to the tiny slot shown in the screenshot. */
+body.no-tabbar #timer .tclock{flex:0 0 80px;min-width:0}
+body.no-tabbar #timer .t{font-size:27px}
+body.no-tabbar #timer .acts{gap:5px}
+body.no-tabbar #timer .acts .btn{min-height:44px}
+body.no-tabbar #timer .acts .adj{
+  flex:1 1 0;min-width:0;justify-content:center;padding-inline:5px;gap:2px;
+}
+body.no-tabbar #timer .acts .pause,
+body.no-tabbar #timer .acts .pause-slot{
+  flex:0 0 44px;width:44px;min-width:44px;padding-inline:0;justify-content:center;
+}
+body.no-tabbar #timer .acts .skip{
+  flex:0 0 60px;min-width:60px;padding-inline:6px;justify-content:center;
+}
+/* Timed holds need space for their exercise label and don't have four buttons. */
+body.no-tabbar #timer.working .tclock{flex:1 1 0}
+body.no-tabbar #timer.working .acts{flex:0 0 auto}
+@media (max-width:379px){
+  body.no-tabbar #timer{inset-inline-start:9px;inset-inline-end:9px;padding-inline:10px;gap:6px}
+  body.no-tabbar #timer .tclock{flex-basis:70px}
+  body.no-tabbar #timer .t{font-size:25px}
+  body.no-tabbar #timer .acts{gap:4px}
+  body.no-tabbar #timer .acts .adj{padding-inline:3px;gap:1px}
+  body.no-tabbar #timer .acts .pause,
+  body.no-tabbar #timer .acts .pause-slot{flex-basis:40px;width:40px;min-width:40px}
+  body.no-tabbar #timer .acts .skip{flex-basis:48px;min-width:48px;padding-inline:3px}
+  body.no-tabbar #timer.working .tclock{flex:1 1 0}
 }
 @media (max-width:359px){
-  body.no-tabbar #timer,#timer{padding-inline:10px}
-  #timer .t{font-size:25px}
   #timer .acts .skip{min-width:0}
 }
 
