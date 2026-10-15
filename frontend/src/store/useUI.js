@@ -8,6 +8,7 @@ import { deviceId } from '../lib/push.js'
 import { MOBILE } from '../lib/mobile.js'
 import { armRestAlert, bindNativeRest, disarmRestAlert, holdRestAlert, iosRestAlert, nativeEndTone, toneNative } from '../lib/rest-alert.js'
 import { useStore } from './useStore.js'
+import { receiveNativeSetCommand } from '../lib/workout-activity.js'
 import { REST_MAX } from '../lib/duration.js'
 import { accentValue } from '../lib/accent.js'
 
@@ -559,6 +560,10 @@ const resyncAfterRestButton = ev => {
 
 bindNativeRest(ev => {
   if (!ev) return
+  // Native Complete Set runs while the WebView can be locked/suspended. It is not
+  // a rest control: keep it in a separately ACKed queue until Workout's real
+  // in-app toggle handler has persisted the correct row.
+  if (ev.type === 'complete-set') { receiveNativeSetCommand(ev); return }
   if (ev.type === 'skip') { useUI.getState().stopRest(); return }
   const left = Math.ceil((ev.leftMs || 0) / 1000)
   if (!(left > 0)) return

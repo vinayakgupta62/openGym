@@ -17,7 +17,7 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
-import { watchWorkoutActivity } from './lib/workout-activity.js'
+import { watchWorkoutActivity, hasNativeSetPending, subscribeNativeSetPending } from './lib/workout-activity.js'
 import { exitWorkoutEdit, startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -84,6 +84,26 @@ function Shell() {
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
   useEffect(() => { setNav(navigate) }, [navigate])
+  // A set was queued from the Lock Screen while this WebView was sleeping or on
+  // another tab. Return to Workout when the app becomes visible so its existing
+  // toggle handler can apply the command and ACK it after durable storage.
+  useEffect(() => {
+    if (!MOBILE || !ready) return
+    const goToPendingSet = () => {
+      if (document.hidden || !hasNativeSetPending()) return
+      const active = useStore.getState().S.active
+      if (active && !active.backfill && !active.editingWorkoutId && loc.pathname !== '/workout') {
+        navigate('/workout')
+      }
+    }
+    const unsubscribe = subscribeNativeSetPending(goToPendingSet)
+    document.addEventListener('visibilitychange', goToPendingSet)
+    goToPendingSet()
+    return () => {
+      unsubscribe()
+      document.removeEventListener('visibilitychange', goToPendingSet)
+    }
+  }, [ready, loc.pathname, navigate])
   const lastEditPath = useRef(loc.pathname)
   // Any in-app route exit, browser back included, returns to the persisted draft and asks for a
   // save decision. Reload needs no prompt because the draft itself is already in local storage.

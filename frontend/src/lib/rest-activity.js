@@ -143,6 +143,18 @@ export async function syncWorkoutActivity(snapshot) {
   } catch { return false }
 }
 
+/** ACK a durable Lock Screen Complete Set command after the WebView workout
+ * state has been saved to its private native mirror (not merely localStorage). */
+export async function ackSetCompletion(id) {
+  if (typeof id !== 'string' || !id) return false
+  try {
+    const p = await plugin()
+    if (!p) return false
+    const result = await p.RestActivity.ackSet({ id })
+    return result?.acknowledged === true
+  } catch { return false }
+}
+
 // One listener and one `bind` for the life of the page. `cb` is useUI's own handler for a
 // notification's buttons — the card's buttons are the same four, in the same shape, so they land in
 // the same place.
