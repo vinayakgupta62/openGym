@@ -123,6 +123,15 @@ describe('the rest alert in the iOS app', () => {
     expect(alert.nativeEndTone()).toBe(false)
   })
 
+  it('starts the Live Activity even if notification permission is denied', async () => {
+    h.platform = 'ios'
+    h.perm = 'denied'
+    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
+    expect(h.activity[0]?.[0]).toBe('start')
+    expect(h.ln).toHaveLength(0)
+  })
+
   it('with Sounds off names no sound, and the notification is silent', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
@@ -140,6 +149,8 @@ describe('the rest alert in the iOS app', () => {
     await settle()
     expect(alert.nativeEndTone()).toBe(false)
     expect(h.ln.at(-1)[0]).toBe('cancel')
+    expect(h.activity.at(-1)[0]).toBe('hold')
+    expect(h.activity.at(-1)[1]).toEqual({ leftMs: 45000, totalMs: 60000 })
   })
 
   it('the calls iOS has no answer to are still quiet no-ops', async () => {

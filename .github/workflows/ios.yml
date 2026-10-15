@@ -28,8 +28,8 @@ on:
   # whose commit happened to touch none of the listed files.
   push:
     tags: ['v*']
-  # A pull request that touches the app verifies it still builds. It does not keep the
-  # artifact (see the upload step): an .ipa here is a couple of hundred MB of exercise media.
+  # A pull request that touches the app builds a test IPA too, so native fixes can
+  # be sideloaded for device validation before anything is merged to main.
   pull_request:
     paths:
       - 'frontend/**'
@@ -169,10 +169,9 @@ jobs:
           shasum -a 256 "openGym-$VER-unsigned.ipa" | tee "openGym-$VER-unsigned.ipa.sha256"
           ls -lh "openGym-$VER-unsigned.ipa"
 
-      # Nothing is uploaded for a pull request: the artifact is large, and a PR only needed to
-      # know that it builds.
+      # Upload PR builds too: installation on a real device is the only way to
+      # verify Live Activities, notification permissions, and haptics.
       - name: Upload the .ipa
-        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: openGym-ipa-${{ steps.version.outputs.ver }}-unsigned
@@ -180,4 +179,4 @@ jobs:
             openGym-*.ipa
             openGym-*.ipa.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7

@@ -21,7 +21,7 @@ import { argb } from './format.js'
 import { accentPair } from './accent.js'
 import { MOBILE } from './mobile.js'
 import { REST_SOUNDS } from './rest-sounds.js'
-import { bindRestActivity, endRestActivity, startRestActivity } from './rest-activity.js'
+import { bindRestActivity, endRestActivity, holdRestActivity, startRestActivity } from './rest-activity.js'
 
 export const REST_ALERT_ID = 42
 export const REST_CHANNEL_ID = 'rest-over'
@@ -159,18 +159,22 @@ async function deliverIos(alert) {
   // Unlike Android, where the alarm sounds whether or not a notification may be posted, on iOS the
   // notification *is* the alert — so here the permission is worth waiting for. Asked once; the
   // dialog only appears on the first rest.
+  // ActivityKit does not need notification authorization. Start it BEFORE prompting for
+  // notification permission: waiting for a dialog or a failed notification schedule used to
+  // prevent the Live Activity from ever being requested.
+  await startRestActivity(alert)
   const granted = await askNotifPermissionOnce()
   if (!(alert.at > Date.now())) return 'expired'
-  const { LocalNotifications } = await import('@capacitor/local-notifications')
-  await LocalNotifications.schedule({ notifications: [iosNotification(alert)] })
-  // And the countdown itself, on the lock screen and in the Dynamic Island (lib/rest-activity.js).
-  // Started from here rather than from useUI because this is where a rest's end is (re-)booked —
-  // the start, a resume and every ±15 s all come through, which is exactly when the card's range
-  // has to move. Awaited so it lands in the same order as everything else on this queue.
-  await startRestActivity(alert)
-  // Only a notification that will really make a noise may silence the page. Denied, the system
-  // says nothing, so the page's own chime has to stand in.
-  iosArmed = granted && !!alert.sound
+  let scheduled = false
+  if (granted) {
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications')
+      await LocalNotifications.schedule({ notifications: [iosNotification(alert)] })
+      scheduled = true
+    } catch { /* ActivityKit is independent of notification scheduling errors. */ }
+  }
+  // Only a granted, scheduled sound may silence the in-page chime.
+  iosArmed = scheduled && !!alert.sound
   return 'ios'
 }
 
@@ -211,10 +215,14 @@ export function holdRestAlert(leftSec, totalSec) {
   if (!MOBILE) return
   enqueue(async () => {
     if ((await platform()) === 'ios') {
-      // Nothing to hold: Android freezes the clock in its countdown card (RestTimerService), and
-      // iOS has no card to freeze. The notification for the old end still has to go, or a rest the
-      // user paused goes on to ring. resumeRest books a fresh one.
-      try { await cancelDelivered() } catch { /* the next arm replaces this one anyway */ }
+      // Keep the Live Activity paused (with Resume and ±15 s controls). Only cancel
+      // the old end notification; cancelDelivered would destroy the card too.
+      iosArmed = false
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications')
+        await LocalNotifications.cancel({ notifications: [{ id: REST_ALERT_ID }] })
+      } catch { /* No pending alert to cancel on this device. */ }
+      await holdRestActivity(leftSec, totalSec)
       return
     }
     const p = await restPlugin()

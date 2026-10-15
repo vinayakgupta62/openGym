@@ -36,7 +36,9 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "end", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "bind", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "bind", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hold", returnType: CAPPluginReturnPromise)
     ]
 
     /// `Any?` rather than `Activity<RestActivityAttributes>?`: naming that type in a stored property
@@ -146,6 +148,50 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch {
                 call.reject(error.localizedDescription, "failed")
             }
+        }
+    }
+
+    // A diagnostics endpoint so the app can distinguish disabled Live Activities from
+    // an unavailable bridge and from an extension that fails to render on-device.
+    @objc public func status(_ call: CAPPluginCall) {
+        guard #available(iOS 16.1, *) else {
+            call.resolve(["supported": false, "enabled": false, "activeCount": 0])
+            return
+        }
+        call.resolve([
+            "supported": true,
+            "enabled": ActivityAuthorizationInfo().areActivitiesEnabled,
+            "activeCount": Activity<RestActivityAttributes>.activities.count,
+        ])
+    }
+
+    // Pause from openGym's in-app rest bar: leave the card and Resume control visible.
+    // The old implementation ended the entire Live Activity on every pause.
+    @objc public func hold(_ call: CAPPluginCall) {
+        guard #available(iOS 16.1, *) else {
+            call.resolve(["held": false]); return
+        }
+        let leftMs = max(0, call.getDouble("leftMs") ?? 0)
+        let totalMs = max(leftMs, call.getDouble("totalMs") ?? leftMs)
+        Task { @MainActor in
+            guard let current = Activity<RestActivityAttributes>.activities.first else {
+                call.resolve(["held": false]); return
+            }
+            var state: RestActivityAttributes.ContentState
+            if #available(iOS 16.2, *) {
+                state = current.content.state
+            } else {
+                state = current.contentState
+            }
+            state.phase = RestActivityAttributes.Phase.paused
+            state.leftMs = leftMs
+            state.totalMs = totalMs
+            if #available(iOS 16.2, *) {
+                await current.update(ActivityContent(state: state, staleDate: nil))
+            } else {
+                await current.update(using: state)
+            }
+            call.resolve(["held": true])
         }
     }
 

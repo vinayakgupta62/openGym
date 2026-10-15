@@ -83,7 +83,34 @@ export async function startRestActivity(alert) {
   } catch { return false }
 }
 
-/** Take the card down: the rest was skipped, dismissed, replaced, or paused. */
+/** Keep the Live Activity visible on Pause, with a frozen clock and Resume control. */
+export async function holdRestActivity(leftSec, totalSec) {
+  if (!MOBILE) return false
+  try {
+    const p = await plugin()
+    if (!p) return false
+    const res = await p.RestActivity.hold({
+      leftMs: Math.max(0, leftSec) * 1000,
+      totalMs: Math.max(leftSec, totalSec) * 1000,
+    })
+    return !!res?.held
+  } catch { return false }
+}
+
+/** Return useful runtime facts for an iPhone Live Activity test in Settings. */
+export async function restActivityStatus() {
+  if (!MOBILE) return { supported: false, reason: 'Not a mobile build' }
+  try {
+    const p = await plugin()
+    if (!p) return { supported: false, reason: 'Not running in the iOS app' }
+    const status = await p.RestActivity.status()
+    return { ...status, native: true }
+  } catch (e) {
+    return { supported: false, native: false, reason: String(e?.message || e) }
+  }
+}
+
+/** Take the card down: the rest was skipped, dismissed or replaced. */
 export async function endRestActivity() {
   if (!MOBILE) return
   try {

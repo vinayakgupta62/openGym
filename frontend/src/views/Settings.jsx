@@ -12,7 +12,7 @@ import { inventoryFor, ownsPlates } from '../lib/plates.js'
 import { dumbbellsOf } from '../lib/dumbbells.js'
 import { effortOf } from '../lib/history.js'
 import { figureOf } from '../lib/exercises.js'
-import { unlock, chime, playOnSilentSupported, vibrateSupported, appleTouchDevice } from '../lib/sound.js'
+import { unlock, chime, vibrate, playOnSilentSupported, vibrateSupported, appleTouchDevice } from '../lib/sound.js'
 import { REST_SOUND_IDS, restSoundOf } from '../lib/rest-sounds.js'
 import { scheduleModeOf, chooseFixedWeek, chooseRotation } from '../lib/rotation.js'
 import { queueOf } from '../lib/queue.js'
@@ -30,6 +30,7 @@ import { syncMedia, fetchToStore } from '../lib/media-sync.js'
 import { getMediaStatus, subscribeMediaStatus, pendingRefCount } from '../lib/media-owed.js'
 import { limitsFrom, fmtMB, MB } from '../lib/media-limits.js'
 import { setRestAccent } from '../lib/rest-alert.js'
+import { restActivityStatus } from '../lib/rest-activity.js'
 import { CUSTOM, accentKey, adjustedIn, applyAccent, cleanHex, inkOn, isGrey } from '../lib/accent.js'
 import { checkForUpdate, downloadAndInstall, fetchChecksum, RELEASES_PAGE } from '../lib/update.js'
 import { forgetCoach } from '../lib/coach-api.js'
@@ -573,6 +574,25 @@ export default function Settings({ page = null, find = null, via = null }) {
       const iPhone = appleTouchDevice()
       return <>
         <Section title={t('When a rest ends')}>
+          {MOBILE && !android && (
+            <Row icon="timer" iconTint="var(--mint)" title="Test iPhone Lock Screen timer"
+              subtitle="Starts a 90-second rest so you can check the Dynamic Island and its controls."
+              accessory="chevron" onClick={async () => {
+                const status = await restActivityStatus()
+                if (!status.supported) {
+                  toast('Live Activity not available: ' + (status.reason || 'unsupported iOS version'))
+                } else if (!status.enabled) {
+                  toast('Live Activities disabled in iPhone Settings')
+                } else {
+                  useUI.getState().startRest(90)
+                  toast('Rest started. Lock your phone to check the Live Activity.', { ms: 5000 })
+                }
+              }} />
+          )}
+          {MOBILE && !android && canVibrate && (
+            <Row icon="vibrate" iconTint="var(--indigo)" title="Test iPhone vibration"
+              accessory="chevron" onClick={() => vibrate([200, 100, 200])} />
+          )}
           <Row icon="speaker" iconTint="var(--pink)" title={t('Play a sound')}>
             {/* Turning the sound on is a tap: unlock the audio context now so a timer that ends
                 before the next set check can already sound (iOS, #152). */}
