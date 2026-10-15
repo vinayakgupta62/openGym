@@ -1,6 +1,7 @@
 import { uid } from './format.js'
 import { modeOf, defaultConfig, isPerSide, entryRoutineId, setsFromRows } from './history.js'
 import { isSideSet, isWarmupRow } from './workout-model.js'
+import { routineSlotIndex } from './routines.js'
 
 // A saved workout is evidence of what was logged, not a live routine. Copy only its flat
 // exercise setup on this explicit action; finishing a workout never calls this helper.
@@ -139,4 +140,50 @@ export function saveSessionAsRoutine(state, session, name) {
   const routine = routineFromSession(session, name, state.routines)
   state.routines.push(routine)
   return routine.id
+}
+
+
+/**
+ * Exercises quick-added during a *planned* session are stored on the completed
+ * workout, but not silently added to its reusable plan. Surface the unmatched
+ * exercises on Finish Summary so the athlete can explicitly keep them.
+ *
+ * The routine slot match is by exercise occurrence, not just by id: an extra
+ * copy of the same lift still counts as an addition. Use the session's rid
+ * rather than guessing from the workout name (combined workouts contain several).
+ */
+export function addedSessionExercises(session, routines = []) {
+  const entries = sessionEntries(session)
+  const byId = new Map((routines || []).filter(r => r?.id && Array.isArray(r.ex)).map(r => [r.id, r]))
+  const groups = new Map()
+  entries.forEach((entry, idx) => {
+    if (!entry?.id || !entry.sets?.length) return
+    const rid = entryRoutineId(session, entry)
+    const routine = byId.get(rid)
+    if (!routine || routineSlotIndex(routine, entries, idx) >= 0) return
+    if (!groups.has(rid)) groups.set(rid, { routineId: rid, name: routine.name, indexes: [] })
+    groups.get(rid).indexes.push(idx)
+  })
+  return [...groups.values()]
+}
+
+/** Explicit, idempotent action taken from the post-workout summary.
+ * Never changes routine slots that already exist, planned progression, or
+ * workout history. A second press becomes a no-op after the additions match.
+ */
+export function addSessionExercisesToRoutines(state, session) {
+  const groups = addedSessionExercises(session, state?.routines)
+  const entries = sessionEntries(session)
+  let count = 0
+  for (const { routineId, indexes } of groups) {
+    const routine = state.routines.find(r => r.id === routineId)
+    if (!routine) continue
+    const additions = indexes.map(i => copiedEntry(entries[i], routine))
+    // A new group should not keep an unattached superset id from a session:
+    // the existing routine was not necessarily the other member of that group.
+    additions.forEach(cfg => { delete cfg.sg })
+    routine.ex.push(...additions)
+    count += additions.length
+  }
+  return count
 }

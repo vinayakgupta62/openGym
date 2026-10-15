@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { routineFromSession, saveSessionAsRoutine } from './session-routines.js'
+import { routineFromSession, saveSessionAsRoutine, addedSessionExercises, addSessionExercisesToRoutines } from './session-routines.js'
 import { buildCompletedWorkout } from './finish-workout.js'
 import { buildSessionEntries } from './session-start.js'
 import { makeSideSet, setSideField, toggleSide, isWarmupRow } from './workout-model.js'
@@ -214,5 +214,63 @@ describe('a routine saved from a planned session', () => {
     const st = stateOf([source])
     const saved = train(st, source, { r: 9 })
     expect(routineFromSession(saved, 'Copy', []).ex[0]).not.toHaveProperty('prog')
+  })
+})
+
+
+describe('saving exercises added during an active planned workout', () => {
+  const makeState = () => ({
+    routines: [{ id: 'push', name: 'Push B', prog: 'linear',
+      ex: [{ id: 'bench', sets: 3, reps: 10, weight: 50 }] }],
+  })
+  const session = () => ({
+    routineIds: ['push'], entries: [
+      entry('bench', { mode: 'reps', sets: 3, reps: 10, weight: 50 },
+        [row({ w: 50, r: 10 })], { rid: 'push' }),
+      entry('incline', { mode: 'reps', sets: 3, reps: 10, weight: 30 },
+        [row({ w: 30, r: 10 })], { rid: 'push' }),
+      entry('triceps', { mode: 'reps', sets: 2, reps: 12, weight: 15 },
+        [row({ w: 15, r: 12 })], { rid: 'push' }),
+    ],
+  })
+
+  it('detects only newly added exercises and keeps the original routine untouched until confirmed', () => {
+    const st = makeState(), w = session()
+    expect(addedSessionExercises(w, st.routines)).toEqual([
+      { routineId: 'push', name: 'Push B', indexes: [1, 2] },
+    ])
+    expect(st.routines[0].ex.map(e => e.id)).toEqual(['bench'])
+  })
+
+  it('adds completed exercises to their existing routine on confirmation, with no duplicates on retry', () => {
+    const st = makeState(), w = session()
+    expect(addSessionExercisesToRoutines(st, w)).toBe(2)
+    expect(st.routines[0].ex.map(e => e.id)).toEqual(['bench', 'incline', 'triceps'])
+    expect(st.routines[0].ex[0]).toMatchObject({ sets: 3, reps: 10, weight: 50 })
+    expect(st.routines[0].ex[1]).toMatchObject({ sets: 1, reps: 10, weight: 30 })
+    expect(addSessionExercisesToRoutines(st, w)).toBe(0)
+  })
+
+  it('keeps duplicate occurrences without confusing them with the original slot', () => {
+    const st = makeState(), w = session()
+    w.entries[1].id = 'bench'
+    expect(addedSessionExercises(w, st.routines)[0].indexes).toEqual([1, 2])
+    addSessionExercisesToRoutines(st, w)
+    expect(st.routines[0].ex.map(e => e.id)).toEqual(['bench', 'bench', 'triceps'])
+  })
+
+  it('never changes freestyle sessions or another routine in combined sessions', () => {
+    const st = makeState(), w = session()
+    w.entries[1].rid = undefined
+    w.entries[2].rid = 'missing-routine'
+    expect(addedSessionExercises(w, st.routines)).toEqual([])
+    expect(addSessionExercisesToRoutines(st, w)).toBe(0)
+    expect(st.routines[0].ex).toHaveLength(1)
+  })
+
+  it('does not import exercises with no logged work from the saved workout', () => {
+    const st = makeState(), w = session()
+    w.entries[1].sets = []
+    expect(addedSessionExercises(w, st.routines)[0].indexes).toEqual([2])
   })
 })
