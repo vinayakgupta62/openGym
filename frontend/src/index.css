@@ -1483,6 +1483,27 @@ body.no-tabbar #timer{
 body.no-tabbar #timer.working{
   box-shadow:inset 0 0 0 var(--hair) var(--acc),0 8px 28px -8px rgba(0,0,0,.6);
 }
+/* The workout screen may have controls at its very end (e.g. "Add session
+   note"). The raised, floating dock intentionally leaves the home-indicator
+   space outside its rounded rectangle, but without an underlay that gap
+   exposes a clipped sliver of those controls BELOW the timer. Mask only the
+   gap, not the whole workout or timer. The app can still scroll its real
+   controls ABOVE the dock using its existing body.resting bottom reserve.
+
+   This is just the page background, not another bulky timer panel. Keep it
+   directly behind #timer (60), above workout content and below sheets/toasts.
+   Avoid this desktop: the centered timer there intentionally floats. */
+@media (max-width:999px){
+  body.no-tabbar.resting::after{
+    content:"";
+    position:fixed;
+    inset-inline-start:0;inset-inline-end:0;bottom:0;
+    height:calc(20px + var(--sab));
+    background:var(--bg);
+    z-index:59;
+    pointer-events:auto;
+  }
+}
 /* Keep the clock large and legible, but make every control a real touch target
    instead of squeezing Pause to the tiny slot shown in the screenshot. */
 body.no-tabbar #timer .tclock{flex:0 0 80px;min-width:0}
