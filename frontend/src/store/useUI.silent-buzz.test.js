@@ -16,13 +16,13 @@ vi.mock('../lib/rest-alert.js', () => ({
   nativeEndTone: vi.fn(() => false),
   iosRestAlert: vi.fn(() => Promise.resolve(false)),
 }))
-vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn() }))
+vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn(), appleTouchDevice: vi.fn(() => false) }))
 vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })) }))
 
 import { useUI } from './useUI.js'
 import { useStore } from './useStore.js'
 import { armRestAlert } from '../lib/rest-alert.js'
-import { alertBuzz, chime, vibrate } from '../lib/sound.js'
+import { alertBuzz, chime, vibrate, appleTouchDevice } from '../lib/sound.js'
 import { toneNative } from '../lib/rest-alert.js'
 
 let original
@@ -31,6 +31,7 @@ beforeEach(() => {
   original = useStore.getState().S
   useUI.setState({ timer: null, timerFlashId: 0 })
   for (const f of [armRestAlert, alertBuzz, chime, vibrate]) f.mockClear()
+  appleTouchDevice.mockReturnValue(false)
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
 })
 afterEach(() => {
@@ -77,12 +78,23 @@ describe('vibrate on silent', () => {
     expect(toneNative).toHaveBeenCalledWith('soft')
   })
 
+  it('ignores the iPhone legacy sound setting while preserving the stronger vibration', async () => {
+    appleTouchDevice.mockReturnValue(true)
+    withSettings({ sound: true, soundOnSilent: true, vibrate: true })
+    useUI.getState().startRest(2)
+    expect(armRestAlert).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({ sound: false, vibrate: true }))
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(toneNative).not.toHaveBeenCalled()
+    expect(chime).not.toHaveBeenCalled()
+    expect(alertBuzz).toHaveBeenCalledWith([270, 90, 340, 95, 390])
+  })
+
   it('the end of a rest seen on screen buzzes through alertBuzz', async () => {
     withSettings({ vibrate: true, vibrateOnSilent: true })
     useUI.getState().startRest(2)
     await vi.advanceTimersByTimeAsync(3000)
-    expect(alertBuzz).toHaveBeenCalledWith([180, 90, 240, 95, 310])
-    expect(vibrate).not.toHaveBeenCalledWith([180, 90, 240, 95, 310])
+    expect(alertBuzz).toHaveBeenCalledWith([270, 90, 340, 95, 390])
+    expect(vibrate).not.toHaveBeenCalledWith([270, 90, 340, 95, 390])
   })
 
   it('a hold that ends early only ticks, the ordinary way', () => {

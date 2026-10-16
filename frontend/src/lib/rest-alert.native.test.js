@@ -13,7 +13,7 @@ const h = vi.hoisted(() => {
   vi.stubEnv('VITE_MOBILE', '1')   // lib/mobile.js: MOBILE = import.meta.env.VITE_MOBILE === '1'
   const store = new Map()
   vi.stubGlobal('localStorage', { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), clear: () => store.clear() })
-  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null, ln: [], activity: [], audio: [] }
+  return { platform: 'android', calls: [], registerPlugin: null, perm: 'granted', request: null, ln: [], activity: [] }
 })
 
 // Shaped like the proxy registerPlugin() returns: every property is a native method, `then`
@@ -28,10 +28,6 @@ const pluginProxy = (name = 'RestAlert') => new Proxy({}, {
       if (name === 'RestActivity') {
         h.activity.push([String(prop), ...args])
         return Promise.resolve({ started: true, ended: true })
-      }
-      if (name === 'RestAudio') {
-        h.audio.push([String(prop), ...args])
-        return Promise.resolve(prop === 'play' ? { played: true } : { ready: true })
       }
       h.calls.push(String(prop))
       if (h.platform !== 'android') return Promise.reject(new Error(`"RestAlert.${String(prop)}()" is not implemented on ${h.platform}`))
@@ -68,7 +64,6 @@ beforeEach(() => {
   h.request = null
   h.ln = []
   h.activity = []
-  h.audio = []
   localStorage.clear()
   unhandled.length = 0
   process.on('unhandledRejection', onUnhandled)
@@ -90,8 +85,7 @@ describe('the rest alert in the iOS app', () => {
     // The Android plugin is never reached from iOS; the Live Activity plugin is (RestActivity),
     // and the notification goes through @capacitor/local-notifications.
     expect(h.calls).toEqual([])
-    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity', 'RestAudio'])
-    expect(h.audio.map(x => x[0])).toEqual(['prepare'])
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
     expect(h.ln).toHaveLength(1)
     const [what, arg] = h.ln[0]
     expect(what).toBe('schedule')
@@ -101,8 +95,8 @@ describe('the rest alert in the iOS app', () => {
     // gets one line of text.
     expect(arg.notifications[0].body).toBe('Rest · 2:00')
     expect(arg.notifications[0].schedule.at.getTime()).toBe(at)
-    expect(arg.notifications[0].sound).toBe('opengym-rest-chime.wav')
-    expect(arg.notifications[0].extra.openGymRestTone).toBe('chime')
+    expect(arg.notifications[0].sound).toBe('opengym-rest-silent.wav')
+    expect(arg.notifications[0]).not.toHaveProperty('extra')
     expect(unhandled).toEqual([])
   })
 
@@ -127,20 +121,15 @@ describe('the rest alert in the iOS app', () => {
     }).body).toBe('Rest · 1:30')
   })
 
-  it('uses the selected bundled tone and preserves it for the Lock Screen controls', async () => {
+  it('schedules only a silent system alert and never invokes custom audio', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
-    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, tone: 'bell' })
-    expect(h.ln[0][1].notifications[0].sound).toBe('opengym-rest-bell.wav')
-    expect(h.ln[0][1].notifications[0].extra.openGymRestTone).toBe('bell')
-    expect(h.activity[0][1].notifyTone).toBe('bell')
-  })
-
-  it('uses native ducked playback when the WebView is active without notifications', async () => {
-    h.platform = 'ios'
-    const alert = await import('./rest-alert.js')
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, tone: 'bell', sound: true })
+    expect(h.ln[0][1].notifications[0].sound).toBe('opengym-rest-silent.wav')
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
     expect(await alert.toneNative('whistle')).toBe(true)
-    expect(h.audio.at(-1)).toEqual(['play', { tone: 'whistle' }])
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
+    expect(h.activity[0][1].notifySound).toBe(true)
   })
 
   it('keeps the page quiet while it is armed, and hands the end back when the rest comes down', async () => {
@@ -148,20 +137,20 @@ describe('the rest alert in the iOS app', () => {
     const alert = await import('./rest-alert.js')
     expect(alert.nativeEndTone()).toBe(false)
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
-    // Capacitor presents a foreground notification with its sound, so the page must not also chime.
-    expect(alert.nativeEndTone()).toBe(true)
+    // The iOS app never requests audio playback.
+    expect(alert.nativeEndTone()).toBe(false)
     alert.disarmRestAlert()
     await settle()
     expect(alert.nativeEndTone()).toBe(false)
     expect(h.ln.at(-1)[0]).toBe('cancel')
   })
 
-  it('leaves the page its own chime when notifications are not allowed', async () => {
+  it('does not play any audio when notifications are denied', async () => {
     h.platform = 'ios'
     h.perm = 'denied'
     const alert = await import('./rest-alert.js')
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
-    // Nothing will sound from the system, so the page has to be the one that rings.
+    // There is no native-audio or Web Audio fallback on iPhone.
     expect(alert.nativeEndTone()).toBe(false)
   })
 
@@ -174,19 +163,22 @@ describe('the rest alert in the iOS app', () => {
     expect(h.ln).toHaveLength(0)
   })
 
-  it('with Sounds off names no sound, and the notification is silent', async () => {
+  it('uses the silent notification sample only when Vibrate is enabled', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
-    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: false })
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: false, vibrate: true })
+    expect(h.ln[0][1].notifications[0].sound).toBe('opengym-rest-silent.wav')
+    h.ln = []
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true, vibrate: false })
     expect(h.ln[0][1].notifications[0]).not.toHaveProperty('sound')
-    expect(alert.nativeEndTone()).toBe(false)
+    expect(h.activity.at(-1)[1].notifySound).toBe(false)
   })
 
   it('a rest that is paused loses the notification for its old end', async () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
-    expect(alert.nativeEndTone()).toBe(true)
+    expect(alert.nativeEndTone()).toBe(false)
     alert.holdRestAlert(45, 60)
     await settle()
     expect(alert.nativeEndTone()).toBe(false)
@@ -258,11 +250,11 @@ describe('the rest alert in the iOS app', () => {
     expect(args.notifyBody).toBe('Rest · 2:00')
     expect(args.notifyBody).toBe(h.ln[0][1].notifications[0].body)
     expect(args.notifySound).toBe(true)
-    // Settings → Sound off: an iOS notification with no sound named is silent, and a button that
-    // re-books it must not put a sound back.
+    // Even if a previous Sound setting was enabled, Vibrate off keeps the
+    // lock-screen controls from rebooking the silent haptic alert sample.
     h.activity = []
     h.ln = []
-    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: false, accent: 0xFF30D158, ink: 0xFF000000 })
+    await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true, vibrate: false, accent: 0xFF30D158, ink: 0xFF000000 })
     expect(h.activity[0][1].notifySound).toBe(false)
   })
 })
