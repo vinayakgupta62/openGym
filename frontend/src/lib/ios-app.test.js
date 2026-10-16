@@ -25,7 +25,7 @@ describe('the Xcode project holds together', () => {
     const storyboard = read('ios/App/App/Base.lproj/Main.storyboard')
     expect(storyboard).toContain('customClass="OpenGymBridgeViewController" customModule="App"')
     expect(pbxproj).toContain('OpenGymBridgeViewController.swift in Sources')
-    for (const nativePlugin of ['SystemBarsPlugin', 'HealthPlugin', 'HapticsPlugin', 'RestActivityPlugin', 'RestAudioPlugin']) {
+    for (const nativePlugin of ['SystemBarsPlugin', 'HealthPlugin', 'HapticsPlugin', 'RestActivityPlugin']) {
       expect(bridge).toContain(`bridge?.registerPluginInstance(${nativePlugin}())`)
     }
   })
@@ -41,7 +41,7 @@ describe('the Xcode project holds together', () => {
 
   // The two halves of every entry: a PBXBuildFile that names the file, and the Sources phase that
   // lists that build file. Either one alone builds a project with a plugin in it that does nothing.
-  it.each(['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift', 'RestAudioPlugin.swift'])('%s is compiled, and its file is where the group says', name => {
+  it.each(['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift'])('%s is compiled, and its file is where the group says', name => {
     expect(pbxproj).toContain(`${name} in Sources`)
     expect(pbxproj).toMatch(new RegExp(`isa = PBXSourcesBuildPhase[\\s\\S]*?${name} in Sources`))
     expect(pbxproj).toMatch(new RegExp(`path = ${name};`))
@@ -65,8 +65,8 @@ describe('the Xcode project holds together', () => {
     expect(read('src/lib/rest-activity.js')).toContain("registerPlugin('RestActivity')")
     expect(read('ios/App/App/HapticsPlugin.swift')).toContain('public let jsName = "Haptics"')
     expect(read('src/lib/sound.js')).toContain("registerPlugin('Haptics')")
-    expect(read('ios/App/App/RestAudioPlugin.swift')).toContain('public let jsName = "RestAudio"')
-    expect(read('src/lib/rest-alert.js')).toContain("registerPlugin('RestAudio')")
+    expect(bridge).not.toContain('RestAudioPlugin()')
+    expect(read('src/lib/rest-alert.js')).not.toContain("registerPlugin('RestAudio')")
   })
 
   // The archive failed on this the first time it ever ran: CAPPlugin already declares
@@ -81,7 +81,7 @@ describe('the Xcode project holds together', () => {
     // If this parse ever stops finding the permission hooks and the lifecycle, the guard is worthless.
     expect([...inherited]).toEqual(expect.arrayContaining(['checkPermissions', 'requestPermissions', 'load']))
 
-    for (const name of ['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift', 'RestAudioPlugin.swift']) {
+    for (const name of ['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift']) {
       const swift = read(`ios/App/App/${name}`)
       const declared = [...swift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1])
       expect(declared.length, `${name} declares no methods`).toBeGreaterThan(0)
@@ -226,43 +226,17 @@ describe('the Live Activity and its buttons', () => {
     expect(intents).toContain('content.body = state.notifyBody.isEmpty ? attributes.notifyBody : state.notifyBody')
     expect(attributes).toContain('public var notifyTone: String')
     expect(restActivity).toContain("notifyTone: alert.tone || 'chime'")
-    expect(intents).toContain('soundFile(state.notifyTone)')
+    expect(intents).not.toContain('content.sound =')
   })
 
-  // Three constants two languages have to agree on, because the Swift side uses them at a moment
-  // when it cannot ask the page anything.
-  it('the Swift side names the same notification, sound and queue the JS does', () => {
-    const id = restAlert.match(/export const REST_ALERT_ID = (\d+)/)?.[1]
-    const sound = restAlert.match(/const IOS_SOUND = '([^']+)'/)?.[1]
-    expect(id).toBeTruthy()
-    expect(sound).toBeTruthy()
-    expect(intents).toContain(`static let notificationID = "${id}"`)
-    expect(intents).toContain(`static let soundName = "${sound}"`)
-    expect(intents).toMatch(/static let queueKey = "opengym_rest_commands"/)
-  })
-
-  it('ships real short PCM WAVs for every selected iOS rest sound', () => {
-    for (const tone of ['chime', 'classic', 'bell', 'beep', 'whistle', 'soft']) {
-      const file = `opengym-rest-${tone}.wav`
-      const bytes = readFileSync(new URL(`../../ios/App/App/RestSounds/${file}`, import.meta.url))
-      expect(bytes.toString('ascii', 0, 4)).toBe('RIFF')
-      expect(bytes.toString('ascii', 8, 12)).toBe('WAVE')
-      expect(bytes.readUInt32LE(24)).toBe(22050)
-      expect(bytes.length).toBeLessThan(22050 * 2 * 30 + 44)
-      expect(pbxproj).toContain(`${file} in Resources`)
-      expect(pbxproj).toContain(`path = RestSounds/${file}`)
-    }
-    const swift = read('ios/App/App/RestAudioPlugin.swift')
-    expect(swift).toContain('.duckOthers')
-    // Duck for 1 s even when the WAV (Bell, Soft) runs longer. Remaining
-    // playback is mixed normally and cannot keep Spotify turned down.
-    expect(swift).toContain('maxDuckSeconds: TimeInterval = 1.0')
-    expect(swift).toContain('options: [.mixWithOthers]')
-    expect(swift).toContain('self?.stopDucking()')
-    expect(swift).toContain('options.subtracting(.sound)')
-    expect(swift).toContain('.notifyOthersOnDeactivation')
-    expect(swift).toContain('notification.request.identifier == "42"')
+  it('never controls music or delivers an iPhone rest sound', () => {
+    expect(restAlert).not.toContain("registerPlugin('RestAudio')")
+    expect(restAlert).not.toContain("opengym-rest-chime.wav")
+    expect(intents).not.toContain('content.sound =')
+    expect(bridge).not.toContain('RestNotificationRouter.shared.install()')
+    expect(pbxproj).not.toContain('RestAudioPlugin.swift')
     expect(read('src/store/useUI.js')).toContain('alertBuzz([180, 90, 240, 95, 310])')
+    expect(read('src/lib/sound.js')).toContain("MOBILE ? 'auto' : (on ? 'playback' : 'auto')")
   })
 
   // The card's buttons are queued when nobody is listening, and `live` is how the page knows whether

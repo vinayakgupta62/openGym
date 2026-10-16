@@ -90,8 +90,8 @@ describe('the rest alert in the iOS app', () => {
     // The Android plugin is never reached from iOS; the Live Activity plugin is (RestActivity),
     // and the notification goes through @capacitor/local-notifications.
     expect(h.calls).toEqual([])
-    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity', 'RestAudio'])
-    expect(h.audio.map(x => x[0])).toEqual(['prepare'])
+    expect(h.registerPlugin.mock.calls.map(c => c[0])).toEqual(['RestActivity'])
+    expect(h.audio).toEqual([])
     expect(h.ln).toHaveLength(1)
     const [what, arg] = h.ln[0]
     expect(what).toBe('schedule')
@@ -101,8 +101,7 @@ describe('the rest alert in the iOS app', () => {
     // gets one line of text.
     expect(arg.notifications[0].body).toBe('Rest · 2:00')
     expect(arg.notifications[0].schedule.at.getTime()).toBe(at)
-    expect(arg.notifications[0].sound).toBe('opengym-rest-chime.wav')
-    expect(arg.notifications[0].extra.openGymRestTone).toBe('chime')
+    expect(arg.notifications[0]).not.toHaveProperty('sound')
     expect(unhandled).toEqual([])
   })
 
@@ -131,8 +130,7 @@ describe('the rest alert in the iOS app', () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, tone: 'bell' })
-    expect(h.ln[0][1].notifications[0].sound).toBe('opengym-rest-bell.wav')
-    expect(h.ln[0][1].notifications[0].extra.openGymRestTone).toBe('bell')
+    expect(h.ln[0][1].notifications[0]).not.toHaveProperty('sound')
     expect(h.activity[0][1].notifyTone).toBe('bell')
   })
 
@@ -140,7 +138,8 @@ describe('the rest alert in the iOS app', () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
     expect(await alert.toneNative('whistle')).toBe(true)
-    expect(h.audio.at(-1)).toEqual(['play', { tone: 'whistle' }])
+    expect(h.audio).toEqual([])
+    expect(h.registerPlugin).not.toHaveBeenCalled()
   })
 
   it('keeps the page quiet while it is armed, and hands the end back when the rest comes down', async () => {
@@ -149,7 +148,7 @@ describe('the rest alert in the iOS app', () => {
     expect(alert.nativeEndTone()).toBe(false)
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
     // Capacitor presents a foreground notification with its sound, so the page must not also chime.
-    expect(alert.nativeEndTone()).toBe(true)
+    expect(alert.nativeEndTone()).toBe(false)
     alert.disarmRestAlert()
     await settle()
     expect(alert.nativeEndTone()).toBe(false)
@@ -186,7 +185,7 @@ describe('the rest alert in the iOS app', () => {
     h.platform = 'ios'
     const alert = await import('./rest-alert.js')
     await alert.armRestAlert(Date.now() + 60_000, { totalSec: 60, sound: true })
-    expect(alert.nativeEndTone()).toBe(true)
+    expect(alert.nativeEndTone()).toBe(false)
     alert.holdRestAlert(45, 60)
     await settle()
     expect(alert.nativeEndTone()).toBe(false)
