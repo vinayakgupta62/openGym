@@ -5,7 +5,7 @@ import { restSoundOf } from '../lib/rest-sounds.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { deviceId } from '../lib/push.js'
-import { MOBILE } from '../lib/mobile.js'
+import { MOBILE, isIOS } from '../lib/mobile.js'
 import { armRestAlert, bindNativeRest, disarmRestAlert, holdRestAlert, iosRestAlert, nativeEndTone, toneNative } from '../lib/rest-alert.js'
 import { useStore } from './useStore.js'
 import { receiveNativeSetCommand, restNotificationBody } from '../lib/workout-activity.js'
@@ -214,7 +214,7 @@ const runRest = (set, get) => {
 // The end of a rest or a hold, on screen. In the Android app the native side plays it, so music
 // ducks for it; anywhere else, or if that fails, the page's own chime.
 function endTone(enabled, kind) {
-  if (!enabled) return
+  if (!enabled || (MOBILE && isIOS())) return
   if (!MOBILE) { chime(enabled, kind); return }
   // The foreground notification delegate suppresses its ordinary system
   // sound while playing a single WAV under .duckOthers. Avoid two chimes.

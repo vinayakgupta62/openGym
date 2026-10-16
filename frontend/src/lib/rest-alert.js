@@ -133,33 +133,15 @@ const restPlugin = () => pluginP || (pluginP = (async () => {
 //
 // One local notification at the end of the rest, and nothing else: no countdown card to keep in
 // step, no labels to push into it, no plugin of our own.
-// Files are bundled in the native iOS target, including all Settings tones.
-const IOS_SOUND = 'opengym-rest-chime.wav'
-const IOS_SOUNDS = Object.fromEntries(Object.keys(REST_SOUNDS).map(id => [id, `opengym-rest-${id}.wav`]))
-let iosAudioP = null
-const iosAudio = () => iosAudioP || (iosAudioP = (async () => {
-  if (!MOBILE || (await platform()) !== 'ios') return null
-  const { registerPlugin } = await import('@capacitor/core')
-  return { RestAudio: registerPlugin('RestAudio') }
-})().catch(() => null))
-const prepareIosAudio = () => iosAudio().then(p => p && p.RestAudio.prepare()).catch(() => {})
-
-// Whether an iOS notification is armed that will make a noise. `useUI.endTone` asks before it
-// chimes: Capacitor presents a notification delivered to a foreground app *with* its sound
-// (LocalNotificationsHandler.willPresent), so without this an iOS rest would ring twice — once from
-// the system and once from the page's Web Audio. Android has the mirror of it in native code
-// (RestAlertPlugin.appInFront, which keeps the alarm quiet while the page is on screen), and there
-// the page's chime is meant to be the only one.
-let iosArmed = false
-export function nativeEndTone() { return iosArmed }
+// iPhone notifications are vibration-only. The system determines intensity
+// while locked; no app audio or AVAudioSession is opened.
+export function nativeEndTone() { return false }
 
 const iosNotification = alert => ({
   id: REST_ALERT_ID,
   title: alert.title,
   body: alert.body,
-  // Bundled custom PCM WAV; the chosen tone plays when locked.
-  ...(alert.sound ? { sound: IOS_SOUNDS[alert.tone] || IOS_SOUND } : {}),
-  extra: { openGymRestTone: alert.tone },
+  // Intentionally silent notification; vibration remains under iOS control.
   schedule: { at: new Date(alert.at) },
 })
 
@@ -184,11 +166,9 @@ async function deliverIos(alert) {
       const { LocalNotifications } = await import('@capacitor/local-notifications')
       await LocalNotifications.schedule({ notifications: [iosNotification(notice)] })
       scheduled = true
-      await prepareIosAudio() // wrap Capacitor delegate only after it is installed
     } catch { /* ActivityKit is independent of notification scheduling errors. */ }
   }
-  // Only a granted, scheduled sound may silence the in-page chime.
-  iosArmed = scheduled && !!alert.sound
+  // The same notification is silent regardless of older sound settings.
   return 'ios'
 }
 
@@ -280,17 +260,11 @@ export function buzzAsAlarm(pattern) {
     .catch(() => false)
 }
 
-// Foreground iOS playback uses AVAudioSession.duckOthers rather than
-// interrupting Spotify. The same native sound works without notifications.
+// Android retains its existing tone; iOS always succeeds silently.
 export async function toneNative(kind) {
   if (!MOBILE) return false
+  if ((await platform()) === 'ios') return true
   const selected = Object.hasOwn(REST_SOUNDS, kind) ? kind : 'chime'
-  if ((await platform()) === 'ios') {
-    try {
-      const p = await iosAudio()
-      return p ? (await p.RestAudio.play({ tone: selected }))?.played === true : false
-    } catch { return false }
-  }
   return restPlugin()
     .then(p => p ? p.RestAlert.tone({ kind: selected }).then(() => true) : false)
     .catch(() => false)

@@ -11,8 +11,6 @@ class OpenGymBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(HealthPlugin())
         bridge?.registerPluginInstance(HapticsPlugin())
         bridge?.registerPluginInstance(RestActivityPlugin())
-        bridge?.registerPluginInstance(RestAudioPlugin())
-        RestNotificationRouter.shared.install()
-        // PrintPlugin retains its legacy CAP_PLUGIN Objective-C registration.
+         // PrintPlugin retains its legacy CAP_PLUGIN Objective-C registration.
     }
 }

@@ -602,12 +602,12 @@ export default function Settings({ page = null, find = null, via = null }) {
               is not an improvement for everyone: louder is a cost with headphones or in a quiet
               room, and some want a sound that feels like theirs (#306). The chime by default; the
               sheet plays each one as you tap it (restSoundSheet). */}
-          {S.sound && <Row icon="speaker" iconTint="var(--pink)" title={t('Sound')} value={t(REST_SOUND_LABEL[restSoundOf(S)])}
+          {S.sound && !isIOS() && <Row icon="speaker" iconTint="var(--pink)" title={t('Sound')} value={t(REST_SOUND_LABEL[restSoundOf(S)])}
             accessory="chevron" onClick={restSoundSheet} />}
           {/* iOS only (WebKit's audio-session API, iOS 17+): with it off the ring/silent switch
               mutes the timer. On, the phone treats the timer like a music player (exclusive, and
               the music app is not told it may resume), so it is a choice, off by default. */}
-          {S.sound && playOnSilentSupported() && (
+          {S.sound && !isIOS() && playOnSilentSupported() && (
             <Row icon="speaker" iconTint="var(--orange)" title={t('Play even on silent')}
               subtitle={<>{t('Music playing on this phone stops during a workout and does not resume by itself.')}<br />{t('iPhone only')}</>}>
               <Switch checked={!!S.soundOnSilent} onChange={v => update(s => { s.soundOnSilent = v })} />

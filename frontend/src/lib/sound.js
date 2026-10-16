@@ -90,7 +90,7 @@ const tone = (freq, dur, when, { peak = 0.35, hold = 0, bright = false, timbre =
 }
 
 export function beep(enabled, freq, dur, when) {
-  if (!enabled) return
+  if (!enabled || (MOBILE && appleTouchDevice())) return
   try { tone(freq || 880, dur || 0.18, when || 0) } catch (e) { /* */ }
 }
 
@@ -123,7 +123,7 @@ export function beep(enabled, freq, dur, when) {
 export { CHIME_PEAK, REST_SOUNDS, REST_SOUND_IDS, restSoundOf } from './rest-sounds.js'
 // `kind` is a REST_SOUNDS id; `true` (the old "classic" switch) still means the classic beeps.
 export function chime(enabled, kind) {
-  if (!enabled) return
+  if (!enabled || (MOBILE && appleTouchDevice())) return
   const id = kind === true ? 'classic' : kind
   const snd = Object.hasOwn(REST_SOUNDS, id) ? REST_SOUNDS[id] : REST_SOUNDS.chime
   try {
@@ -136,7 +136,7 @@ export function chime(enabled, kind) {
 // Call from inside a tap. Gets the context created and running while the browser still counts
 // this as a user gesture; it goes back to sleep on its own. Nothing audible.
 export function unlock(enabled) {
-  if (!enabled) return
+  if (!enabled || (MOBILE && appleTouchDevice())) return
   try { wake(); sleepAfter(0) } catch (e) { /* */ }
 }
 
@@ -160,7 +160,7 @@ export const appleTouchDevice = () => {
 }
 export function setPlayOnSilent(on) {
   if (!playOnSilentSupported()) return
-  try { navigator.audioSession.type = on ? 'playback' : 'auto' } catch (e) { /* */ }
+  try { navigator.audioSession.type = MOBILE ? 'auto' : (on ? 'playback' : 'auto') } catch (e) { /* */ }
 }
 
 // Settings → "Vibrate" (Discord, asierlama): the buzz at the end of a rest or a hold and on a set
