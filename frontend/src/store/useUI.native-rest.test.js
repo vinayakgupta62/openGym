@@ -20,7 +20,7 @@ vi.mock('../lib/rest-alert.js', () => ({
   // The one queued press test below is iOS's; everywhere else this says no and nothing is re-booked.
   iosRestAlert: vi.fn(() => Promise.resolve(false)),
 }))
-vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn() }))
+vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn(), appleTouchDevice: vi.fn(() => false) }))
 vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })) }))
 
 import { useUI } from './useUI.js'

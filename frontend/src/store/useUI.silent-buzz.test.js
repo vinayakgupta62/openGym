@@ -30,7 +30,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   original = useStore.getState().S
   useUI.setState({ timer: null, timerFlashId: 0 })
-  for (const f of [armRestAlert, alertBuzz, chime, vibrate]) f.mockClear()
+  for (const f of [armRestAlert, alertBuzz, chime, vibrate, toneNative]) f.mockClear()
   appleTouchDevice.mockReturnValue(false)
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
 })

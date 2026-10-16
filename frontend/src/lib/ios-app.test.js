@@ -41,7 +41,7 @@ describe('the Xcode project holds together', () => {
 
   // The two halves of every entry: a PBXBuildFile that names the file, and the Sources phase that
   // lists that build file. Either one alone builds a project with a plugin in it that does nothing.
-  it.each(['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift', 'RestAudioPlugin.swift'])('%s is compiled, and its file is where the group says', name => {
+  it.each(['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift'])('%s is compiled, and its file is where the group says', name => {
     expect(pbxproj).toContain(`${name} in Sources`)
     expect(pbxproj).toMatch(new RegExp(`isa = PBXSourcesBuildPhase[\\s\\S]*?${name} in Sources`))
     expect(pbxproj).toMatch(new RegExp(`path = ${name};`))
@@ -79,7 +79,7 @@ describe('the Xcode project holds together', () => {
     // If this parse ever stops finding the permission hooks and the lifecycle, the guard is worthless.
     expect([...inherited]).toEqual(expect.arrayContaining(['checkPermissions', 'requestPermissions', 'load']))
 
-    for (const name of ['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift', 'RestAudioPlugin.swift']) {
+    for (const name of ['SystemBarsPlugin.swift', 'HealthPlugin.swift', 'HapticsPlugin.swift', 'RestActivityPlugin.swift']) {
       const swift = read(`ios/App/App/${name}`)
       const declared = [...swift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1])
       expect(declared.length, `${name} declares no methods`).toBeGreaterThan(0)

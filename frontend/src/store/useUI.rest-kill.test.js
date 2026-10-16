@@ -13,7 +13,7 @@ vi.mock('../lib/rest-alert.js', () => ({
   bindNativeRest: vi.fn(),
   iosRestAlert: vi.fn(() => Promise.resolve(false)),
 }))
-vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn() }))
+vi.mock('../lib/sound.js', () => ({ beep: vi.fn(), chime: vi.fn(), vibrate: vi.fn(), alertBuzz: vi.fn(), appleTouchDevice: vi.fn(() => false) }))
 vi.mock('../lib/api.js', () => ({ api: vi.fn(() => Promise.resolve({ ok: true })) }))
 
 import { useUI, restoreRest, REST_KEY } from './useUI.js'
