@@ -593,11 +593,12 @@ export default function Settings({ page = null, find = null, via = null }) {
             <Row icon="vibrate" iconTint="var(--indigo)" title="Test iPhone vibration"
               accessory="chevron" onClick={() => vibrate([200, 100, 200])} />
           )}
-          <Row icon="speaker" iconTint="var(--pink)" title={t('Play a sound')}>
-            {/* Turning the sound on is a tap: unlock the audio context now so a timer that ends
-                before the next set check can already sound (iOS, #152). */}
-            <Switch checked={!!S.sound} onChange={v => { if (v) unlock(true); update(s => { s.sound = v }) }} />
-          </Row>
+          {!isIOS() && <Row icon="speaker" iconTint="var(--pink)" title={t('Play a sound')}>
+            <Switch checked={!!S.sound} onChange={value => { if (value) unlock(true); update(s => { s.sound = value }) }} />
+          </Row>}
+          {isIOS() && <Row icon="vibrate" iconTint="var(--indigo)"
+            title="Rest completed: vibration only"
+            subtitle="No chime, beeps, music ducking or pausing. iOS controls notification vibration while locked." />}
           {/* The chime that replaced the original three beeps (Discord: "too quiet under music")
               is not an improvement for everyone: louder is a cost with headphones or in a quiet
               room, and some want a sound that feels like theirs (#306). The chime by default; the

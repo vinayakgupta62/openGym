@@ -216,9 +216,7 @@ const runRest = (set, get) => {
 function endTone(enabled, kind) {
   if (!enabled || (MOBILE && isIOS())) return
   if (!MOBILE) { chime(enabled, kind); return }
-  // The foreground notification delegate suppresses its ordinary system
-  // sound while playing a single WAV under .duckOthers. Avoid two chimes.
-  // Without notification permission, toneNative still plays the same WAV.
+  // Android keeps its rest tone. Installed iOS is already returned above.
   if (nativeEndTone()) return
   toneNative(kind === true ? 'classic' : kind).then(ok => { if (!ok) chime(enabled, kind) })
 }
