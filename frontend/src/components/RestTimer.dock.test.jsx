@@ -58,13 +58,13 @@ describe('the docked rest bar', () => {
 
   it('masks text below the floating bar instead of exposing clipped footer controls', () => {
     const css = readFileSync('src/index.css', 'utf8')
-    const mask = css.match(/body\\.no-tabbar\\.resting::after\\s*\\{([^}]*)\\}/)?.[1]
+    const mask = css.match(/body\.no-tabbar\.resting::after\s*\{([^}]*)\}/)?.[1]
     expect(mask).toBeTruthy()
     expect(mask).toContain('height:calc(20px + var(--sab))')
     expect(mask).toContain('background:var(--bg)')
     expect(mask).toContain('z-index:59')
     expect(mask).toContain('pointer-events:auto')
-    expect(css).toMatch(/@media \\(max-width:999px\\)\\s*\\{\\s*body\\.no-tabbar\\.resting::after/)
+    expect(css).toMatch(/@media \(max-width:999px\)\s*\{\s*body\.no-tabbar\.resting::after/)
     // #timer stays above the mask while sheets/toasts stay above the timer.
     expect(css).toContain('bottom:calc(8px + var(--sab))')
     expect(css).toContain('z-index:60')
