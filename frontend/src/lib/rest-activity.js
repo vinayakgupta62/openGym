@@ -65,7 +65,7 @@ export async function startRestActivity(alert) {
       // notification belong to the app's own i18n, and a rest given another 15 s keeps the length it
       // started with on a line nobody reads while the card is counting down anyway.
       notifyBody: alert.body,
-      notifySound: !!alert.sound,
+      notifySound: !!alert.vibrate, // silent alert sample only; never a chime
       notifyTone: alert.tone || 'chime',
       accentHex: hex(alert.accent),
       inkHex: hex(alert.ink),

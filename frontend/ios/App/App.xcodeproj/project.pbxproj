@@ -7,13 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-        BB1000000000000000000002 /* RestAudioPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000000000000000000001 /* RestAudioPlugin.swift */; };
-        BB1100000000000000000001 /* opengym-rest-chime.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000001 /* opengym-rest-chime.wav */; };
-        BB1100000000000000000002 /* opengym-rest-classic.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000002 /* opengym-rest-classic.wav */; };
-        BB1100000000000000000003 /* opengym-rest-bell.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000003 /* opengym-rest-bell.wav */; };
-        BB1100000000000000000004 /* opengym-rest-beep.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000004 /* opengym-rest-beep.wav */; };
-        BB1100000000000000000005 /* opengym-rest-whistle.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000005 /* opengym-rest-whistle.wav */; };
-        BB1100000000000000000006 /* opengym-rest-soft.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1200000000000000000006 /* opengym-rest-soft.wav */; };
+        BB1400000000000000000001 /* opengym-rest-silent.wav in Resources */ = {isa = PBXBuildFile; fileRef = BB1300000000000000000001 /* opengym-rest-silent.wav */; };
 		AA0700000000000000000002 /* OpenGymBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0700000000000000000001 /* OpenGymBridgeViewController.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -63,13 +57,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-        BB1000000000000000000001 /* RestAudioPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestAudioPlugin.swift; sourceTree = "<group>"; };
-        BB1200000000000000000001 /* opengym-rest-chime.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-chime.wav; sourceTree = "<group>"; };
-        BB1200000000000000000002 /* opengym-rest-classic.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-classic.wav; sourceTree = "<group>"; };
-        BB1200000000000000000003 /* opengym-rest-bell.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-bell.wav; sourceTree = "<group>"; };
-        BB1200000000000000000004 /* opengym-rest-beep.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-beep.wav; sourceTree = "<group>"; };
-        BB1200000000000000000005 /* opengym-rest-whistle.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-whistle.wav; sourceTree = "<group>"; };
-        BB1200000000000000000006 /* opengym-rest-soft.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-soft.wav; sourceTree = "<group>"; };
+        BB1300000000000000000001 /* opengym-rest-silent.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RestSounds/opengym-rest-silent.wav; sourceTree = "<group>"; };
 		AA0700000000000000000001 /* OpenGymBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenGymBridgeViewController.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -157,13 +145,7 @@
 				AA0200000000000000000003 /* HealthPlugin.swift */,
 				AA0200000000000000000005 /* App.entitlements */,
 				AA0300000000000000000001 /* HapticsPlugin.swift */,
-				BB1000000000000000000001 /* RestAudioPlugin.swift */,
-				BB1200000000000000000001 /* opengym-rest-chime.wav */,
-				BB1200000000000000000002 /* opengym-rest-classic.wav */,
-				BB1200000000000000000003 /* opengym-rest-bell.wav */,
-				BB1200000000000000000004 /* opengym-rest-beep.wav */,
-				BB1200000000000000000005 /* opengym-rest-whistle.wav */,
-				BB1200000000000000000006 /* opengym-rest-soft.wav */,
+                BB1300000000000000000001 /* opengym-rest-silent.wav */,
 				AA0400000000000000000001 /* RestActivityAttributes.swift */,
 				AA0500000000000000000001 /* RestIntents.swift */,
 				AA0600000000000000000001 /* RestActivityPlugin.swift */,
@@ -286,12 +268,7 @@
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
-				BB1100000000000000000001 /* opengym-rest-chime.wav in Resources */,
-				BB1100000000000000000002 /* opengym-rest-classic.wav in Resources */,
-				BB1100000000000000000003 /* opengym-rest-bell.wav in Resources */,
-				BB1100000000000000000004 /* opengym-rest-beep.wav in Resources */,
-				BB1100000000000000000005 /* opengym-rest-whistle.wav in Resources */,
-				BB1100000000000000000006 /* opengym-rest-soft.wav in Resources */,
+                BB1400000000000000000001 /* opengym-rest-silent.wav in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
@@ -355,7 +332,6 @@
 				AA0200000000000000000002 /* SystemBarsPlugin.swift in Sources */,
 				AA0200000000000000000004 /* HealthPlugin.swift in Sources */,
 				AA0300000000000000000002 /* HapticsPlugin.swift in Sources */,
-				BB1000000000000000000002 /* RestAudioPlugin.swift in Sources */,
 				AA0400000000000000000002 /* RestActivityAttributes.swift in Sources */,
 				AA0500000000000000000002 /* RestIntents.swift in Sources */,
 				AA0600000000000000000002 /* RestActivityPlugin.swift in Sources */,

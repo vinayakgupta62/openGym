@@ -409,7 +409,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   // The value a root row shows, so most questions are answered without opening the page.
   const preview = {
     workout: () => (S.restSec > 0 ? t('{0} rest', fmtRest(S.restSec)) : t('No rest timer')) + ' · ' + layoutLabel,
-    alerts: () => [S.sound ? t('Sound') : null, canVibrate && S.vibrate !== false ? t('Vibrate') : null, S.timerFlash ? t('Flash') : null].filter(Boolean).join(' · ') || t('Silent'),
+    alerts: () => [(!MOBILE || android) && S.sound ? t('Sound') : null, canVibrate && S.vibrate !== false ? t('Vibrate') : null, S.timerFlash ? t('Flash') : null].filter(Boolean).join(' · ') || t('Silent'),
     reminders: () => (S.reminder?.on ? (S.reminder.time || DEF.reminder?.time || '') : t('Off')),
     plan: () => (mode === 'rotation' ? t('Rotation') : t('Fixed Week')) + ' · ' + shortWeekday(weekStartOf(S) === SUNDAY ? 0 : 1),
     units: () => (S.unit || 'kg') + ' · ' + (LANGS[lang] || lang),
@@ -593,6 +593,10 @@ export default function Settings({ page = null, find = null, via = null }) {
             <Row icon="vibrate" iconTint="var(--indigo)" title="Test iPhone vibration"
               accessory="chevron" onClick={() => vibrate([200, 100, 200])} />
           )}
+          {/* Native iOS deliberately offers vibration only. Older saved
+              soundOnSilent flags are ignored and WebKit's audio session is
+              reset to auto in App.jsx, so Spotify is never paused by timers. */}
+          {(!MOBILE || android) && <>
           <Row icon="speaker" iconTint="var(--pink)" title={t('Play a sound')}>
             {/* Turning the sound on is a tap: unlock the audio context now so a timer that ends
                 before the next set check can already sound (iOS, #152). */}
@@ -613,6 +617,8 @@ export default function Settings({ page = null, find = null, via = null }) {
               <Switch checked={!!S.soundOnSilent} onChange={v => update(s => { s.soundOnSilent = v })} />
             </Row>
           )}
+          </>}
+
         </Section>
         {/* The buzz at the end of a rest or a hold and on a set tick, on its own switch like the
             sound (Discord, asierlama). iOS has no navigator.vibrate: the row stays, greyed out,

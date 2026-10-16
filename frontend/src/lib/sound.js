@@ -22,6 +22,11 @@
 import { MOBILE } from './mobile.js'
 import { REST_SOUNDS } from './rest-sounds.js'
 
+// In the native iOS app all workout cues are haptic-only. Calling even Web
+// Audio's unlock() can create an audio session that pauses a music app. The
+// web/PWA and Android keep their existing sound features.
+const muteIosApp = () => MOBILE && appleTouchDevice()
+
 let audioCtx = null
 let idleTm = null
 let idleAt = 0
@@ -90,7 +95,7 @@ const tone = (freq, dur, when, { peak = 0.35, hold = 0, bright = false, timbre =
 }
 
 export function beep(enabled, freq, dur, when) {
-  if (!enabled) return
+  if (!enabled || muteIosApp()) return
   try { tone(freq || 880, dur || 0.18, when || 0) } catch (e) { /* */ }
 }
 
@@ -123,7 +128,7 @@ export function beep(enabled, freq, dur, when) {
 export { CHIME_PEAK, REST_SOUNDS, REST_SOUND_IDS, restSoundOf } from './rest-sounds.js'
 // `kind` is a REST_SOUNDS id; `true` (the old "classic" switch) still means the classic beeps.
 export function chime(enabled, kind) {
-  if (!enabled) return
+  if (!enabled || muteIosApp()) return
   const id = kind === true ? 'classic' : kind
   const snd = Object.hasOwn(REST_SOUNDS, id) ? REST_SOUNDS[id] : REST_SOUNDS.chime
   try {
@@ -136,7 +141,7 @@ export function chime(enabled, kind) {
 // Call from inside a tap. Gets the context created and running while the browser still counts
 // this as a user gesture; it goes back to sleep on its own. Nothing audible.
 export function unlock(enabled) {
-  if (!enabled) return
+  if (!enabled || muteIosApp()) return
   try { wake(); sleepAfter(0) } catch (e) { /* */ }
 }
 
@@ -147,7 +152,7 @@ export function unlock(enabled) {
 // 'playback' ignores the switch; 'auto' is the browser's own choice (Ambient for a page like
 // this one). Applied by App.jsx whenever the setting is loaded or changed.
 export const playOnSilentSupported = () => {
-  if (typeof navigator === 'undefined' || !navigator.audioSession) return false
+  if (MOBILE || typeof navigator === 'undefined' || !navigator.audioSession) return false
   return appleTouchDevice()
 }
 // An iPhone or iPad, in Safari, a home-screen web app or the iOS app (an iPad reports itself as
@@ -159,6 +164,13 @@ export const appleTouchDevice = () => {
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 }
 export function setPlayOnSilent(on) {
+  // On a native iPhone, always undo any prior stored "play even on silent"
+  // selection. WebKit's .playback session pauses Spotify and can outlive the
+  // toggle. Never set .playback from this app, even if the old flag is true.
+  if (muteIosApp()) {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'auto' } catch (e) { /* */ }
+    return
+  }
   if (!playOnSilentSupported()) return
   try { navigator.audioSession.type = on ? 'playback' : 'auto' } catch (e) { /* */ }
 }

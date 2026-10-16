@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { uid } from '../lib/format.js'
-import { beep, chime, vibrate, alertBuzz } from '../lib/sound.js'
+import { beep, chime, vibrate, alertBuzz, appleTouchDevice } from '../lib/sound.js'
 import { restSoundOf } from '../lib/rest-sounds.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
@@ -33,7 +33,7 @@ const bookRestEnd = (endsAt, totalSec, kind) => {
     // exact same snapshot already drives the Lock Screen exercise / weight × reps.
     // Only iOS uses this notification body; Android keeps its existing timer card.
     iosBody: restNotificationBody(S),
-    accent: accentValue(S), sound: !!S.sound, classic: restSoundOf(S) === 'classic', tone: restSoundOf(S), vibrate: S.vibrate !== false, alarmBuzz: S.vibrate !== false && !!S.vibrateOnSilent })
+    accent: accentValue(S), sound: !!S.sound && !(MOBILE && appleTouchDevice()), classic: restSoundOf(S) === 'classic', tone: restSoundOf(S), vibrate: S.vibrate !== false, alarmBuzz: S.vibrate !== false && !!S.vibrateOnSilent })
     .then(ok => {
       // Only for the rest that asked: one skipped or moved since then has booked its own end.
       const tm = useUI.getState().timer
@@ -190,7 +190,7 @@ const runRest = (set, get) => {
         // The Android alarm for this end stays quiet while the app is on screen, so this chime is
         // the only one. Locked, this branch never runs and the alarm's tone does.
         endTone(snd, endSound)
-        alertBuzz([180, 90, 240, 95, 310]); get().flashTimer()
+        alertBuzz([270, 90, 340, 95, 390]); get().flashTimer()
       }
       // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
       // without push permission, gets no notification, and a countdown that silently vanishes
@@ -214,7 +214,7 @@ const runRest = (set, get) => {
 // The end of a rest or a hold, on screen. In the Android app the native side plays it, so music
 // ducks for it; anywhere else, or if that fails, the page's own chime.
 function endTone(enabled, kind) {
-  if (!enabled) return
+  if (!enabled || (MOBILE && appleTouchDevice())) return
   if (!MOBILE) { chime(enabled, kind); return }
   // The foreground notification delegate suppresses its ordinary system
   // sound while playing a single WAV under .duckOthers. Avoid two chimes.
